@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.7">
+<meta name="version" content="0.1.8">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -121,7 +121,6 @@ main { display: grid; gap: 12px; padding: 12px; max-width: 1200px; margin: 0 aut
 .chip.fired { border-color: var(--ih-accent); background: var(--ih-accent-soft); }
 .chip.fired .dot { background: var(--ih-accent); border-color: var(--ih-accent); }
 .chip .count { font-family: var(--ih-font-code); color: var(--ih-text-secondary); }
-.chip.off .lbl { color: var(--ih-text-secondary); text-decoration: line-through; }
 .panel { background: var(--ih-surface); border: 1px solid var(--ih-border); border-radius: var(--ih-radius); padding: 12px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .stack { display: grid; gap: 12px; }
@@ -140,8 +139,6 @@ button.danger.armed { background: var(--ih-error-soft); color: var(--ih-text); }
 button:disabled { cursor: not-allowed; color: var(--ih-text-secondary); background: var(--ih-surface-alt); border-color: var(--ih-border); }
 label { font-weight: 500; }
 .field { display: grid; gap: 4px; }
-.toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-.toggles label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary); }
 .hint { color: var(--ih-text-secondary); font-size: 14px; margin: 6px 0 0; }
 .gallery-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -254,7 +251,6 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
             </select>
           </div>
         </div>
-        <div class="toggles" id="toggles"></div>
         <label><input type="checkbox" id="showOverlay" checked> Show tracking overlay</label>
       </div>
 
@@ -273,6 +269,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
         <div class="row">
           <button id="zipBtn">Download ZIP</button>
           <button id="shareBtn">Share</button>
+          <button class="danger" id="clearUnstarredBtn" disabled>Clear unstarred</button>
           <button class="danger" id="clearBtn">Clear all</button>
         </div>
         <div class="grid" id="grid"></div>
@@ -297,7 +294,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.7';
+const APP_VERSION = '0.1.8';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -324,7 +321,6 @@ const PREROLL_INTERVAL_MS = 220;
 const DETECT_INTERVAL_MS = 90;
 
 const state = {
-  enabled: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, true])),
   streak: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
   lastFired: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, -1e9])),
   counts: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
@@ -348,19 +344,14 @@ function toast(msg, ms = 2500) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);
 }
 
-// ---------- UI: chips + toggles ----------
+// ---------- UI: chips ----------
 function renderChips() {
   $('chips').innerHTML = Object.entries(MOMENTS).map(([k, m]) => {
-    const cls = !state.enabled[k] ? 'off' : (performance.now() - state.lastFired[k] < 1500 ? 'fired' : (state.live[k] ? 'live' : ''));
-    const word = !state.enabled[k] ? 'off' : (cls === 'fired' ? 'captured' : (cls === 'live' ? 'seen' : ''));
+    const cls = performance.now() - state.lastFired[k] < 1500 ? 'fired' : (state.live[k] ? 'live' : '');
+    const word = cls === 'fired' ? 'captured' : (cls === 'live' ? 'seen' : '');
     return `<span class="chip ${cls}"><span class="dot"></span><span class="lbl">${m.chip ?? m.label}</span>${word ? `<span class="sr">${word}</span>` : ''}<span class="count">${state.counts[k]}</span></span>`;
   }).join('');
 }
-$('toggles').innerHTML = Object.entries(MOMENTS).map(([k, m]) =>
-  `<label><input type="checkbox" data-moment="${k}" checked> ${m.label}</label>`).join('');
-$('toggles').addEventListener('change', e => {
-  const k = e.target.dataset.moment; if (k) { state.enabled[k] = e.target.checked; renderChips(); }
-});
 $('filter').innerHTML += Object.entries(MOMENTS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('')
   + '<option value="manual">Manual</option>';
 renderChips();
@@ -446,7 +437,29 @@ function syncAllThumbs() {
 function updateStarOption() {
   const n = memShots.reduce((c, s) => c + (s.starred ? 1 : 0), 0);
   $('filter').querySelector('option[value="starred"]').textContent = `★ Starred (${n})`;
+  updateClearUnstarred(n);
 }
+let unstarredArmTimer = 0;
+function updateClearUnstarred(starCount = memShots.reduce((c, s) => c + (s.starred ? 1 : 0), 0)) {
+  clearTimeout(unstarredArmTimer);
+  const b = $('clearUnstarredBtn'), un = memShots.length - starCount;
+  b.classList.remove('armed');
+  b.textContent = un ? `Clear unstarred (${un})` : 'Clear unstarred';
+  b.disabled = !(starCount > 0 && un > 0); // needs at least one keeper, else it would be "Clear all"
+}
+$('clearUnstarredBtn').onclick = () => {
+  const b = $('clearUnstarredBtn'), un = memShots.filter(s => !s.starred);
+  if (!un.length) return;
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = `Tap again to delete ${un.length}`;
+    unstarredArmTimer = setTimeout(() => updateClearUnstarred(), 3000);
+    return;
+  }
+  const ids = un.map(s => s.id);
+  deleteShots(ids); ids.forEach(id => selected.delete(id));
+  renderGallery();
+  toast(`Deleted ${ids.length} unstarred. Kept ${memShots.length} starred.`);
+};
 let deleteArmTimer = 0;
 function disarmDelete() {
   clearTimeout(deleteArmTimer);
@@ -855,7 +868,7 @@ async function detectLoop() {
       let fire = null;
       // priority: the fleeting moments first
       for (const k of ['kiss', 'taste', 'smell', 'look', 'smile', 'prep']) {
-        state.streak[k] = state.live[k] && state.enabled[k] ? state.streak[k] + 1 : 0;
+        state.streak[k] = state.live[k] ? state.streak[k] + 1 : 0;
         const m = MOMENTS[k];
         if (!fire && state.streak[k] >= m.hold && now - state.lastFired[k] > m.cooldown * 1000 && now - state.lastBurst > GLOBAL_GAP_MS) fire = k;
       }

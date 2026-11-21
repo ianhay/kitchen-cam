@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 - 2026-11-21
+
+- Added **Clear unstarred** in the Captures tab: deletes every photo that isn't starred and keeps the keepers (tap twice to confirm). It is disabled until at least one photo is starred.
+- Removed the per-moment checkboxes from Settings. Every moment (smiling, taste testing, smelling, looking at each other, kissing, prep action) is always detected and recorded, and the pills, gallery filter and ZIP folders are unchanged.
+
 ## 0.1.7 - 2026-11-21
 
 - The moment pills under the camera view are now a fixed size. They used to grow and wrap onto extra lines when "seen" or "captured" was appended to the label. State is shown by the dot and colour, and the words are kept for screen readers only.
