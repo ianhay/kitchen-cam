@@ -2,7 +2,7 @@
 
 A single-file web app that runs in your phone browser and automatically captures short photo bursts of two people cooking together. It uses the camera with on-device face and hand tracking (MediaPipe) to spot the moments worth keeping.
 
-**Version:** 0.1.5
+**Version:** 0.1.6
 
 ## How to use
 
@@ -10,7 +10,7 @@ A single-file web app that runs in your phone browser and automatically captures
 2. Prop the phone up facing the kitchen.
 3. Tap **Start** (Controls tab) and allow camera access. Settings and the Captures gallery are in the other tabs.
 4. Cook. Bursts are captured automatically; **Manual burst** takes one on demand.
-5. Review captures in the Captures tab: tap a photo to open it and swipe left or right to browse, tap ★ to mark keepers, or use **Select** (or long-press) to pick several at once. Filter to **Starred**, then **Download ZIP** or **Share**.
+5. Review captures in the Captures tab: tap a photo to open it and swipe, or tap the left or right side of the screen, to browse, tap ★ to mark keepers, or use **Select** (or long-press) to pick several at once. Filter to **Starred**, then **Download ZIP** or **Share**.
 
 The camera needs HTTPS, which is the only reason the page is hosted.
 

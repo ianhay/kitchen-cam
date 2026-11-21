@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 - 2026-11-21
+
+- In the photo viewer, tap the left half of the screen to go to the previous photo and the right half for the next one. Faint arrows at the screen edges show the tap zones. Swiping, the buttons and the arrow keys still work.
+
 ## 0.1.5 - 2026-11-21
 
 - **Multi-select** in the Captures tab: tap **Select** (or long-press a photo), tap photos to toggle, then use Select all / None, Star or Unstar, and Delete (tap twice to confirm). Download ZIP and Share act on the selection when there is one.
