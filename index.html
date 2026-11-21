@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.1">
+<meta name="version" content="0.1.2">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -242,7 +242,7 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.1';
+const APP_VERSION = '0.1.2';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -259,7 +259,8 @@ const MOMENTS = {
   taste: { label: 'Taste testing',      hold: 2, cooldown: 6  },
   smell: { label: 'Smelling',           hold: 3, cooldown: 8  },
   look:  { label: 'Looking at each other', hold: 4, cooldown: 10 },
-  prep:  { label: 'Prep action',        hold: 5, cooldown: 25 },
+  kiss:  { label: 'Kissing',            hold: 2, cooldown: 12 },
+  prep: { label: 'Prep action',        hold: 5, cooldown: 25 },
 };
 const GLOBAL_GAP_MS = 2500;
 const BURST_INTERVAL_MS = 130;
@@ -499,6 +500,8 @@ function analyseFaces(faceRes) {
     const centre = mid(cheekL, cheekR);
     return {
       lm, width, nose, mouth, chin, centre,
+      cheeks: [px(lm[205]), px(lm[425])],
+      pucker: b.mouthPucker || 0,
       smile: ((b.mouthSmileLeft || 0) + (b.mouthSmileRight || 0)) / 2,
       jawOpen: b.jawOpen || 0,
       eyesClosed: ((b.eyeBlinkLeft || 0) + (b.eyeBlinkRight || 0)) / 2,
@@ -519,7 +522,7 @@ function handPoints(handRes) {
 }
 
 function evaluate(faces, hands, sens) {
-  const live = { smile: false, taste: false, smell: false, look: false, prep: false };
+  const live = { smile: false, taste: false, smell: false, look: false, kiss: false, prep: false };
 
   // Smiling: any face
   if (faces.some(f => f.smile > 0.55 / sens)) live.smile = true;
@@ -541,6 +544,17 @@ function evaluate(faces, hands, sens) {
     const [a, b] = [...faces].sort((p, q) => q.width - p.width).slice(0, 2).sort((p, q) => p.centre.x - q.centre.x);
     const t = 0.09 / sens;
     if (a.yaw > t && b.yaw < -t) live.look = true;
+  }
+
+  // Kissing: one person's mouth on the other's mouth or cheek (distances relative to mean face width)
+  if (faces.length >= 2) {
+    const [a, b] = [...faces].sort((p, q) => q.width - p.width).slice(0, 2);
+    const w = (a.width + b.width) / 2;
+    const mouthToMouth = dist(a.mouth, b.mouth) / w;
+    const cheekKiss = Math.min(
+      ...b.cheeks.map(c => dist(a.mouth, c)), ...a.cheeks.map(c => dist(b.mouth, c))) / w;
+    const puckered = Math.max(a.pucker, b.pucker) > 0.3;
+    if (mouthToMouth < 0.45 * sens || (cheekKiss < 0.3 * sens && puckered)) live.kiss = true;
   }
 
   // Prep action: hands below face level, moving briskly
@@ -608,7 +622,7 @@ async function detectLoop() {
       const now = performance.now();
       let fire = null;
       // priority: the fleeting moments first
-      for (const k of ['taste', 'smell', 'look', 'smile', 'prep']) {
+      for (const k of ['kiss', 'taste', 'smell', 'look', 'smile', 'prep']) {
         state.streak[k] = state.live[k] && state.enabled[k] ? state.streak[k] + 1 : 0;
         const m = MOMENTS[k];
         if (!fire && state.streak[k] >= m.hold && now - state.lastFired[k] > m.cooldown * 1000 && now - state.lastBurst > GLOBAL_GAP_MS) fire = k;

@@ -2,7 +2,7 @@
 
 A single-file web app that runs in your phone browser and automatically captures short photo bursts of two people cooking together. It uses the camera with on-device face and hand tracking (MediaPipe) to spot the moments worth keeping.
 
-**Version:** 0.1.1
+**Version:** 0.1.2
 
 ## How to use
 
@@ -22,6 +22,7 @@ The camera needs HTTPS, which is the only reason the page is hosted.
 | Taste testing | Fingertips near the mouth |
 | Smelling | Fingertips near the nose, or an eyes-closed sniff |
 | Looking at each other | Two faces turned toward one another |
+| Kissing | Two faces with one mouth on the other's mouth, or puckered against the cheek |
 | Prep action | Hands below face level moving briskly |
 
 Detection thresholds are first guesses and not yet tuned. Burst size, sensitivity and resolution can be changed in the app.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-11-21
+
+- Added a **Kissing** moment (toggle, chip, gallery filter). Fires when two faces are detected with mouth-to-mouth distance under 0.45 of face width, or a puckered mouth within 0.3 of face width of the other person's cheek. 2 frames to trigger, 12 s cooldown, checked before the other moments. Thresholds are untuned first guesses.
+
 ## 0.1.1 - 2026-11-21
 
 - First published release on GitHub Pages (https://ianhay.github.io/kitchen-cam/).
