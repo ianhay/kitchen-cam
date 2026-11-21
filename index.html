@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.3">
+<meta name="version" content="0.1.4">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,10 +72,19 @@ body {
   font: 400 15px/1.45 var(--ih-font-body);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-.brand {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px;
-  padding-bottom: 10px; border-bottom: 1px solid var(--ih-divider);
+.brand { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.tabs-panel { padding: 0; overflow: hidden; }
+.tablist { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--ih-border); background: var(--ih-surface-alt); }
+.tablist button {
+  border: 0; border-radius: 0; background: transparent; color: var(--ih-text-secondary);
+  padding: 0 6px; white-space: nowrap; font-size: 13px;
+  border-bottom: 3px solid transparent; margin-bottom: -1px;
 }
+.tablist button:hover { background: var(--ih-surface-selected); }
+.tablist button[aria-selected="true"] { background: var(--ih-surface); color: var(--ih-text); border-bottom-color: var(--ih-primary); }
+.tablist button:focus-visible { outline-offset: -3px; }
+.tabpane { padding: 12px; }
+.tabpane[hidden] { display: none; }
 h1 { font: 700 24px/1 var(--ih-font-heading); margin: 0; letter-spacing: .02em; display: flex; align-items: baseline; gap: 8px; }
 h2 { font: 600 20px/1.1 var(--ih-font-heading); margin: 0 0 8px; }
 .version {
@@ -170,59 +179,71 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
   </div>
 
   <div class="stack">
-    <section class="panel stack">
-      <div class="brand">
-        <h1>Kitchen Cam <span class="version" data-version></span></h1>
-        <span class="status-line" id="status" role="status">Idle</span>
-      </div>
-      <div class="row">
-        <button class="primary" id="startBtn">Start</button>
-        <button id="burstBtn" disabled>Manual burst</button>
-        <button id="flipBtn" disabled>Flip camera</button>
-        <button id="dimBtn" disabled>Dim screen</button>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="burstSize">Burst size</label>
-          <select id="burstSize">
-            <option value="4">4 shots</option>
-            <option value="6" selected>6 shots</option>
-            <option value="10">10 shots</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="sensitivity">Sensitivity</label>
-          <select id="sensitivity">
-            <option value="0.8">Low</option>
-            <option value="1" selected>Normal</option>
-            <option value="1.25">High</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="quality">Resolution</label>
-          <select id="quality">
-            <option value="1280x720">720p</option>
-            <option value="1920x1080" selected>1080p</option>
-            <option value="3840x2160">4K (if supported)</option>
-          </select>
-        </div>
-      </div>
-      <div class="toggles" id="toggles"></div>
-      <label><input type="checkbox" id="showOverlay" checked> Show tracking overlay</label>
-      <p class="hint">Everything runs on this phone. No images leave the device until you download or share them.</p>
-    </section>
+    <div class="brand">
+      <h1>Kitchen Cam <span class="version" data-version></span></h1>
+      <span class="status-line" id="status" role="status">Idle</span>
+    </div>
 
-    <section class="panel">
-      <div class="gallery-head">
-        <h2 id="galleryTitle">Captures</h2>
-        <div class="row">
-          <select id="filter" aria-label="Filter captures"><option value="all">All moments</option></select>
-          <button id="zipBtn">Download ZIP</button>
-          <button id="shareBtn">Share</button>
-          <button class="danger" id="clearBtn">Clear all</button>
-        </div>
+    <section class="panel tabs-panel">
+      <div class="tablist" role="tablist" aria-label="Kitchen Cam sections">
+        <button role="tab" id="tab-controls" aria-controls="pane-controls" aria-selected="true" tabindex="0">Controls</button>
+        <button role="tab" id="tab-settings" aria-controls="pane-settings" aria-selected="false" tabindex="-1">Settings</button>
+        <button role="tab" id="tab-captures" aria-controls="pane-captures" aria-selected="false" tabindex="-1"><span id="galleryTitle">Captures</span></button>
       </div>
-      <div class="grid" id="grid"></div>
+
+      <div class="tabpane stack" role="tabpanel" id="pane-controls" aria-labelledby="tab-controls">
+        <div class="row">
+          <button class="primary" id="startBtn">Start</button>
+          <button id="burstBtn" disabled>Manual burst</button>
+          <button id="flipBtn" disabled>Flip camera</button>
+          <button id="dimBtn" disabled>Dim screen</button>
+        </div>
+        <label><input type="checkbox" id="keepAwake" checked> Keep screen on</label>
+        <p class="hint">Everything runs on this phone. No images leave the device until you download or share them.</p>
+      </div>
+
+      <div class="tabpane stack" role="tabpanel" id="pane-settings" aria-labelledby="tab-settings" hidden>
+        <div class="row">
+          <div class="field">
+            <label for="burstSize">Burst size</label>
+            <select id="burstSize">
+              <option value="4">4 shots</option>
+              <option value="6" selected>6 shots</option>
+              <option value="10">10 shots</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sensitivity">Sensitivity</label>
+            <select id="sensitivity">
+              <option value="0.8">Low</option>
+              <option value="1" selected>Normal</option>
+              <option value="1.25">High</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="quality">Resolution</label>
+            <select id="quality">
+              <option value="1280x720">720p</option>
+              <option value="1920x1080" selected>1080p</option>
+              <option value="3840x2160">4K (if supported)</option>
+            </select>
+          </div>
+        </div>
+        <div class="toggles" id="toggles"></div>
+        <label><input type="checkbox" id="showOverlay" checked> Show tracking overlay</label>
+      </div>
+
+      <div class="tabpane" role="tabpanel" id="pane-captures" aria-labelledby="tab-captures" hidden>
+        <div class="gallery-head">
+          <select id="filter" aria-label="Filter captures"><option value="all">All moments</option></select>
+          <div class="row">
+            <button id="zipBtn">Download ZIP</button>
+            <button id="shareBtn">Share</button>
+            <button class="danger" id="clearBtn">Clear all</button>
+          </div>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div>
     </section>
   </div>
 </main>
@@ -241,7 +262,7 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.3';
+const APP_VERSION = '0.1.4';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -666,10 +687,36 @@ async function loadModels() {
 }
 
 async function requestWakeLock() {
+  if (!$('keepAwake').checked) return;
   try { state.wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 }
+function releaseWakeLock() { state.wakeLock?.release?.(); state.wakeLock = null; }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state.running) requestWakeLock();
+});
+$('keepAwake').addEventListener('change', () => {
+  if (!state.running) return;
+  if ($('keepAwake').checked) requestWakeLock(); else releaseWakeLock();
+});
+
+// ---------- Tabs ----------
+const tabs = [...document.querySelectorAll('[role=tab]')];
+function selectTab(tab, focus) {
+  tabs.forEach(t => {
+    const on = t === tab;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute('aria-controls')).hidden = !on;
+  });
+  if (focus) tab.focus();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => selectTab(t));
+  t.addEventListener('keydown', e => {
+    const k = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+    if (k === undefined) return;
+    e.preventDefault(); selectTab(tabs[(k + tabs.length) % tabs.length], true);
+  });
 });
 
 $('startBtn').onclick = async () => {
@@ -697,7 +744,7 @@ function stop() {
   state.running = false;
   state.stream?.getTracks().forEach(t => t.stop());
   state.preroll.splice(0).forEach(b => b.close?.());
-  state.wakeLock?.release?.(); state.wakeLock = null;
+  releaseWakeLock();
   ['burstBtn', 'flipBtn', 'dimBtn'].forEach(id => $(id).disabled = true);
   $('startBtn').textContent = 'Start'; $('startBtn').className = 'primary';
   $('placeholder').style.display = ''; octx.clearRect(0, 0, overlay.width, overlay.height);

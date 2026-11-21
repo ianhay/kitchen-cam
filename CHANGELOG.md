@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-11-21
+
+- Controls are now in three tabs below the camera view: **Controls** (Start, Manual burst, Flip camera, Dim screen), **Settings** (burst size, sensitivity, resolution, moment toggles, tracking overlay) and **Captures** (gallery, filter, ZIP, share, clear). The Captures tab shows the photo count.
+- Added a **Keep screen on** option (on by default). Turning it off releases the screen wake lock, including mid-session.
+
 ## 0.1.3 - 2026-11-21
 
 - Removed the page header so the camera view sits at the top of the screen in landscape. The app name, version and status line moved to the top of the controls panel.
