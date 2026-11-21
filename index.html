@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.4">
+<meta name="version" content="0.1.5">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -142,7 +142,22 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 .hint { color: var(--ih-text-secondary); font-size: 14px; margin: 6px 0 0; }
 .gallery-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; margin-top: 10px; }
+.grid { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.grid .empty { grid-column: 1 / -1; margin: 4px 0; }
 .grid figure { margin: 0; position: relative; }
+.grid figure.sel img { outline: 3px solid var(--ih-primary); outline-offset: -3px; }
+.badge {
+  position: absolute; top: 4px; width: 24px; height: 24px; border-radius: 50%; display: none; place-items: center;
+  font: 700 14px/1 var(--ih-font-body); pointer-events: none;
+}
+.badge.star { right: 4px; background: var(--ih-accent); color: var(--ih-text-on-accent); }
+figure.starred .badge.star { display: grid; }
+.badge.check { left: 4px; background: var(--ih-surface); border: 2px solid var(--ih-text); color: transparent; }
+.grid.select-mode .badge.check { display: grid; }
+figure.sel .badge.check { background: var(--ih-primary); border-color: var(--ih-primary); color: var(--ih-text-on-primary); }
+.sel-count { font: 500 13px/1.3 var(--ih-font-code); color: var(--ih-text-secondary); min-width: 90px; }
+button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-color: var(--ih-primary); }
+[hidden] { display: none !important; }
 .grid img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: var(--ih-radius); display: block; border: 1px solid var(--ih-border); }
 .grid figcaption {
   position: absolute; left: 4px; bottom: 4px; padding: 2px 6px; border-radius: 999px;
@@ -150,11 +165,14 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 }
 .grid button.thumb { padding: 0; border: 0; background: none; min-height: 0; display: block; width: 100%; }
 .viewer {
-  position: fixed; inset: 0; background: rgba(5, 8, 12, .94); display: none; flex-direction: column;
+  position: fixed; inset: 0; background: rgba(5, 8, 12, .97); display: none; flex-direction: column;
   align-items: center; justify-content: center; gap: 12px; padding: 16px; z-index: 20;
 }
 .viewer.open { display: flex; }
-.viewer img { max-width: 100%; max-height: 78vh; border-radius: var(--ih-radius); }
+.viewer { touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.viewer img { flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; border-radius: var(--ih-radius); pointer-events: none; -webkit-user-drag: none; }
+#viewerStar[aria-pressed="true"] { background: var(--ih-accent); border-color: var(--ih-accent); color: var(--ih-text-on-accent); }
+#viewerStar[aria-pressed="true"]:hover { background: var(--ih-accent-hover); }
 .viewer .meta { color: #f3f5f8; font: 500 13px/1.3 var(--ih-font-code); }
 .dimmer { position: fixed; inset: 0; background: #000; display: none; z-index: 30; color: #c0c8d3; align-items: flex-end; justify-content: center; padding-bottom: 40px; font-size: 14px; }
 .dimmer.on { display: flex; }
@@ -233,14 +251,22 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
         <label><input type="checkbox" id="showOverlay" checked> Show tracking overlay</label>
       </div>
 
-      <div class="tabpane" role="tabpanel" id="pane-captures" aria-labelledby="tab-captures" hidden>
-        <div class="gallery-head">
-          <select id="filter" aria-label="Filter captures"><option value="all">All moments</option></select>
-          <div class="row">
-            <button id="zipBtn">Download ZIP</button>
-            <button id="shareBtn">Share</button>
-            <button class="danger" id="clearBtn">Clear all</button>
-          </div>
+      <div class="tabpane stack" role="tabpanel" id="pane-captures" aria-labelledby="tab-captures" hidden>
+        <div class="row">
+          <select id="filter" aria-label="Filter captures"><option value="all">All moments</option><option value="starred">★ Starred</option></select>
+          <button class="toggle" id="selectBtn" aria-pressed="false">Select</button>
+        </div>
+        <div class="row" id="selBar" hidden>
+          <span class="sel-count" id="selCount" aria-live="polite">0 selected</span>
+          <button id="selAll">Select all</button>
+          <button id="selNone">None</button>
+          <button id="selStar" disabled>★ Star</button>
+          <button class="danger" id="selDelete" disabled>Delete</button>
+        </div>
+        <div class="row">
+          <button id="zipBtn">Download ZIP</button>
+          <button id="shareBtn">Share</button>
+          <button class="danger" id="clearBtn">Clear all</button>
         </div>
         <div class="grid" id="grid"></div>
       </div>
@@ -253,8 +279,9 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
   <div class="meta" id="viewerMeta"></div>
   <div class="row">
     <button id="viewerPrev">Previous</button>
-    <button class="accent" id="viewerSave">Save</button>
+    <button id="viewerStar" aria-pressed="false">☆ Star</button>
     <button id="viewerNext">Next</button>
+    <button id="viewerSave">Save</button>
     <button id="viewerClose">Close</button>
   </div>
 </div>
@@ -262,7 +289,7 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.4';
+const APP_VERSION = '0.1.5';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -342,17 +369,28 @@ function openDB() {
     } catch { resolve(null); }
   });
 }
-const memShots = []; // fallback / cache: {id, ts, tag, name, blob, url}
-async function putShot(shot) {
-  memShots.unshift(shot);
-  if (!db) return;
+const memShots = []; // fallback / cache: {id, ts, tag, name, blob, url, starred}
+async function persistShots(list) {
+  if (!db || !list.length) return;
   try {
     await new Promise((res, rej) => {
       const tx = db.transaction('shots', 'readwrite');
-      tx.objectStore('shots').put({ id: shot.id, ts: shot.ts, tag: shot.tag, name: shot.name, blob: shot.blob });
+      const st = tx.objectStore('shots');
+      list.forEach(sh => st.put({ id: sh.id, ts: sh.ts, tag: sh.tag, name: sh.name, blob: sh.blob, starred: !!sh.starred }));
       tx.oncomplete = res; tx.onerror = () => rej(tx.error);
     });
   } catch (e) { console.warn('IDB write failed', e); }
+}
+async function putShot(shot) {
+  memShots.unshift(shot);
+  await persistShots([shot]);
+}
+function deleteShots(ids) {
+  const gone = new Set(ids);
+  for (let i = memShots.length - 1; i >= 0; i--) {
+    if (gone.has(memShots[i].id)) { URL.revokeObjectURL(memShots[i].url); memShots.splice(i, 1); }
+  }
+  if (db) try { const st = db.transaction('shots', 'readwrite').objectStore('shots'); ids.forEach(id => st.delete(id)); } catch {}
 }
 async function loadShots() {
   if (!db) return;
@@ -367,42 +405,203 @@ async function loadShots() {
 async function clearShots() {
   memShots.forEach(s => URL.revokeObjectURL(s.url)); memShots.length = 0;
   if (db) try { db.transaction('shots', 'readwrite').objectStore('shots').clear(); } catch {}
-  renderGallery();
+  selected.clear(); renderGallery();
 }
 
 // ---------- Gallery ----------
+const selected = new Set(); // ids of selected shots
+let selectMode = false;
 function filtered() {
   const f = $('filter').value;
-  return f === 'all' ? memShots : memShots.filter(s => s.tag === f);
+  if (f === 'all') return memShots;
+  if (f === 'starred') return memShots.filter(s => s.starred);
+  return memShots.filter(s => s.tag === f);
 }
 const tagLabel = t => MOMENTS[t]?.label ?? 'Manual';
+const selectedShots = () => memShots.filter(s => selected.has(s.id));
+
+function thumbLabel(s) {
+  const verb = selectMode ? (selected.has(s.id) ? 'Deselect' : 'Select') : 'Open';
+  return `${verb} ${tagLabel(s.tag)} photo${s.starred ? ', starred' : ''}`;
+}
+function syncThumb(fig, s) {
+  fig.classList.toggle('sel', selected.has(s.id));
+  fig.classList.toggle('starred', !!s.starred);
+  const b = fig.querySelector('.thumb');
+  b.setAttribute('aria-label', thumbLabel(s));
+  if (selectMode) b.setAttribute('aria-pressed', selected.has(s.id)); else b.removeAttribute('aria-pressed');
+}
+function syncAllThumbs() {
+  const byId = new Map(memShots.map(s => [s.id, s]));
+  $('grid').querySelectorAll('figure').forEach(fig => { const s = byId.get(fig.dataset.id); if (s) syncThumb(fig, s); });
+}
+function updateStarOption() {
+  const n = memShots.reduce((c, s) => c + (s.starred ? 1 : 0), 0);
+  $('filter').querySelector('option[value="starred"]').textContent = `★ Starred (${n})`;
+}
+let deleteArmTimer = 0;
+function disarmDelete() {
+  clearTimeout(deleteArmTimer);
+  const b = $('selDelete'); b.classList.remove('armed'); b.textContent = 'Delete';
+}
+function updateToolbar() {
+  const n = selected.size, sel = selectedShots();
+  $('selectBtn').setAttribute('aria-pressed', selectMode);
+  $('selectBtn').textContent = selectMode ? 'Done' : 'Select';
+  $('selBar').hidden = !selectMode;
+  $('selCount').textContent = `${n} selected`;
+  $('selStar').disabled = $('selDelete').disabled = !n;
+  $('selStar').textContent = n && sel.every(s => s.starred) ? '☆ Unstar' : '★ Star';
+  $('zipBtn').textContent = n ? `Download ZIP (${n})` : 'Download ZIP';
+  $('shareBtn').textContent = n ? `Share (${n})` : 'Share';
+  disarmDelete();
+}
 function renderGallery() {
   const list = filtered();
   $('galleryTitle').textContent = `Captures (${memShots.length})`;
-  $('grid').innerHTML = list.slice(0, 300).map((s, i) =>
-    `<figure><button class="thumb" data-i="${i}" aria-label="Open ${tagLabel(s.tag)} photo"><img loading="lazy" src="${s.url}" alt="${tagLabel(s.tag)}"></button><figcaption>${tagLabel(s.tag)}</figcaption></figure>`).join('');
+  $('grid').classList.toggle('select-mode', selectMode);
+  updateStarOption();
+  const empty = $('filter').value === 'starred'
+    ? 'No starred captures yet. Open a photo and tap ★ to mark keepers.'
+    : 'No captures yet.';
+  $('grid').innerHTML = list.length ? list.slice(0, 300).map((s, i) =>
+    `<figure data-id="${s.id}"><button class="thumb" data-i="${i}"><img loading="lazy" src="${s.url}" alt="${tagLabel(s.tag)}"></button><span class="badge star" aria-hidden="true">★</span><span class="badge check" aria-hidden="true">✓</span><figcaption>${tagLabel(s.tag)}</figcaption></figure>`).join('')
+    : `<p class="hint empty">${empty}</p>`;
+  syncAllThumbs();
+  updateToolbar();
 }
-$('filter').addEventListener('change', renderGallery);
+$('filter').addEventListener('change', () => { selected.clear(); renderGallery(); });
+
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selected.clear();
+  $('grid').classList.toggle('select-mode', on);
+  syncAllThumbs(); updateToolbar();
+}
+function toggleSelect(id, force) {
+  const on = force ?? !selected.has(id);
+  if (on) selected.add(id); else selected.delete(id);
+  const fig = $('grid').querySelector(`figure[data-id="${id}"]`), s = memShots.find(x => x.id === id);
+  if (fig && s) syncThumb(fig, s);
+  updateToolbar();
+}
+$('selectBtn').onclick = () => setSelectMode(!selectMode);
+$('selAll').onclick = () => { filtered().forEach(s => selected.add(s.id)); syncAllThumbs(); updateToolbar(); };
+$('selNone').onclick = () => { selected.clear(); syncAllThumbs(); updateToolbar(); };
+$('selStar').onclick = () => {
+  const sel = selectedShots(); if (!sel.length) return;
+  const mark = !sel.every(s => s.starred);
+  sel.forEach(s => { s.starred = mark; });
+  persistShots(sel);
+  toast(`${mark ? 'Starred' : 'Unstarred'} ${sel.length}`);
+  if (!mark && $('filter').value === 'starred') selected.clear();
+  renderGallery();
+};
+$('selDelete').onclick = () => {
+  const n = selected.size; if (!n) return;
+  const b = $('selDelete');
+  if (!b.classList.contains('armed')) {
+    const st = selectedShots().filter(s => s.starred).length;
+    b.classList.add('armed'); b.textContent = `Tap again to delete ${n}${st ? ` (${st} ★)` : ''}`;
+    deleteArmTimer = setTimeout(disarmDelete, 3000);
+    return;
+  }
+  deleteShots([...selected]); selected.clear(); renderGallery(); toast(`${n} deleted`);
+};
+
+// tap = open (or toggle in select mode); long-press = start selecting
+let pressTimer = 0, longPressed = false;
+$('grid').addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-i]'); if (!b || e.button > 0) return;
+  longPressed = false; clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    longPressed = true; navigator.vibrate?.(20);
+    if (!selectMode) setSelectMode(true);
+    toggleSelect(b.closest('figure').dataset.id, true);
+  }, 500);
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => $('grid').addEventListener(t, () => {
+  clearTimeout(pressTimer); setTimeout(() => { longPressed = false; }, 50);
+}));
+$('grid').addEventListener('contextmenu', e => e.preventDefault());
+$('grid').addEventListener('click', e => {
+  if (longPressed) { longPressed = false; return; }
+  const b = e.target.closest('[data-i]'); if (!b) return;
+  if (selectMode) toggleSelect(b.closest('figure').dataset.id); else openViewer(+b.dataset.i);
+});
+
+// ---- viewer: prev/next, swipe, star ----
 let viewIdx = 0;
-function openViewer(i) {
+function paintViewer(s, n) {
+  $('viewerMeta').textContent = `${s.name} · ${viewIdx + 1}/${n}`;
+  const st = $('viewerStar');
+  st.setAttribute('aria-pressed', !!s.starred); st.textContent = s.starred ? '★ Starred' : '☆ Star';
+}
+function openViewer(i, dir = 0) {
   const list = filtered(); if (!list.length) return;
   viewIdx = (i + list.length) % list.length;
   const s = list[viewIdx];
   $('viewerImg').src = s.url; $('viewerImg').alt = tagLabel(s.tag);
-  $('viewerMeta').textContent = `${s.name} · ${viewIdx + 1}/${list.length}`;
+  paintViewer(s, list.length);
+  const wasOpen = $('viewer').classList.contains('open');
   $('viewer').classList.add('open');
+  if (dir) $('viewerImg').animate?.([{ transform: `translateX(${dir * 48}px)`, opacity: .2 }, { transform: 'none', opacity: 1 }], { duration: 180, easing: 'ease-out' });
+  if (!wasOpen && list.length > 1 && !openViewer.hinted && matchMedia('(pointer: coarse)').matches) {
+    openViewer.hinted = true; toast('Swipe left or right to browse', 2500);
+  }
 }
-$('grid').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) openViewer(+b.dataset.i); });
-$('viewerPrev').onclick = () => openViewer(viewIdx - 1);
-$('viewerNext').onclick = () => openViewer(viewIdx + 1);
+$('viewerPrev').onclick = () => openViewer(viewIdx - 1, -1);
+$('viewerNext').onclick = () => openViewer(viewIdx + 1, 1);
 $('viewerClose').onclick = () => $('viewer').classList.remove('open');
 $('viewerSave').onclick = () => saveFiles([filtered()[viewIdx]]);
+$('viewerStar').onclick = () => {
+  const s = filtered()[viewIdx]; if (!s) return;
+  s.starred = !s.starred; persistShots([s]);
+  if (!s.starred && $('filter').value === 'starred') {
+    // it just left the filtered list: show the next one, or close
+    renderGallery();
+    const n = filtered().length;
+    if (!n) $('viewerClose').click(); else openViewer(Math.min(viewIdx, n - 1));
+    return;
+  }
+  paintViewer(s, filtered().length);
+  const fig = $('grid').querySelector(`figure[data-id="${s.id}"]`); if (fig) syncThumb(fig, s);
+  updateStarOption();
+};
 document.addEventListener('keydown', e => {
   if (!$('viewer').classList.contains('open')) return;
   if (e.key === 'Escape') $('viewerClose').click();
   if (e.key === 'ArrowLeft') $('viewerPrev').click();
   if (e.key === 'ArrowRight') $('viewerNext').click();
+  if (e.key === 's' || e.key === 'S') $('viewerStar').click();
 });
+{
+  const viewer = $('viewer'), img = $('viewerImg');
+  let drag = null;
+  viewer.addEventListener('pointerdown', e => {
+    if (e.target.closest('button') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (drag) { drag = null; img.style.transform = ''; img.style.opacity = ''; return; } // second finger = pinch, not swipe
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, active: false };
+  });
+  viewer.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.active) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.3) { drag.active = true; viewer.setPointerCapture(e.pointerId); }
+      else return;
+    }
+    drag.dx = dx;
+    img.style.transform = `translateX(${dx}px)`; img.style.opacity = String(1 - Math.min(Math.abs(dx) / 500, .5));
+  });
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { dx, active } = drag; drag = null;
+    img.style.transform = ''; img.style.opacity = '';
+    if (active && e.type === 'pointerup' && Math.abs(dx) > 60) openViewer(viewIdx + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    else if (active) img.animate?.([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], { duration: 150, easing: 'ease-out' });
+  };
+  viewer.addEventListener('pointerup', end); viewer.addEventListener('pointercancel', end);
+}
 
 async function saveFiles(shots) {
   if (!shots.length) return toast('Nothing to save yet');
@@ -413,12 +612,12 @@ async function saveFiles(shots) {
   shots.forEach(s => { const a = document.createElement('a'); a.href = s.url; a.download = s.name; a.click(); });
 }
 $('shareBtn').onclick = () => {
-  const list = filtered();
+  const list = selected.size ? selectedShots() : filtered();
   if (list.length > 40) toast('Sharing the newest 40. Use Download ZIP for everything.');
   saveFiles(list.slice(0, 40));
 };
 $('zipBtn').onclick = async () => {
-  const list = filtered(); if (!list.length) return toast('Nothing to download yet');
+  const list = selected.size ? selectedShots() : filtered(); if (!list.length) return toast('Nothing to download yet');
   $('zipBtn').disabled = true; setStatus('Zipping…');
   try {
     const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
@@ -434,7 +633,8 @@ $('zipBtn').onclick = async () => {
 $('clearBtn').onclick = () => {
   const b = $('clearBtn');
   if (!b.classList.contains('armed')) {
-    b.classList.add('armed'); b.textContent = 'Tap again to delete';
+    const st = memShots.filter(x => x.starred).length;
+    b.classList.add('armed'); b.textContent = st ? `Tap again: delete all incl. ${st} ★` : 'Tap again to delete';
     setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Clear all'; }, 3000);
     return;
   }

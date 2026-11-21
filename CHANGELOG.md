@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 - 2026-11-21
+
+- **Multi-select** in the Captures tab: tap **Select** (or long-press a photo), tap photos to toggle, then use Select all / None, Star or Unstar, and Delete (tap twice to confirm). Download ZIP and Share act on the selection when there is one.
+- **Swipe** left or right in the photo viewer to move between photos (drag with a mouse works too). Previous and Next buttons and the arrow keys still work.
+- **Star** keepers from the viewer (or in bulk from the selection). Stars show as a badge on thumbnails, are saved on the device, and there is a **Starred** filter, so Download ZIP and Share can export just the keepers. Clear all warns when starred photos are included.
+- The viewer photo now scales to the available height, fixing overflow in landscape.
+
 ## 0.1.4 - 2026-11-21
 
 - Controls are now in three tabs below the camera view: **Controls** (Start, Manual burst, Flip camera, Dim screen), **Settings** (burst size, sensitivity, resolution, moment toggles, tracking overlay) and **Captures** (gallery, filter, ZIP, share, clear). The Captures tab shows the photo count.
