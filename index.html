@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="version" content="0.1.1">
+<meta name="theme-color" content="#10151c">
+<title>Kitchen Cam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --ih-font-heading: 'Barlow Condensed', 'Arial Narrow', 'Segoe UI', sans-serif;
+  --ih-font-body: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  --ih-font-code: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  --ih-bg: #f3f5f8;
+  --ih-surface: #ffffff;
+  --ih-surface-alt: #edf1f6;
+  --ih-surface-selected: #dfe8f6;
+  --ih-text: #191d23;
+  --ih-text-secondary: #505a68;
+  --ih-text-muted: #5f6976;
+  --ih-text-on-primary: #ffffff;
+  --ih-text-on-accent: #17140b;
+  --ih-primary: #24529a;
+  --ih-primary-hover: #1c447f;
+  --ih-primary-soft: #dfe8f6;
+  --ih-accent: #d87822;
+  --ih-accent-hover: #c96c1a;
+  --ih-accent-soft: #f5dcc6;
+  --ih-border: #c9ced6;
+  --ih-divider: #d8dde4;
+  --ih-focus: #5f8fd8;
+  --ih-success: #3e745a;
+  --ih-success-soft: #e2eee7;
+  --ih-error: #b34f4a;
+  --ih-error-soft: #f4dedc;
+  --ih-radius: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ih-bg: #10151c;
+    --ih-surface: #181f29;
+    --ih-surface-alt: #222c39;
+    --ih-surface-selected: #263b58;
+    --ih-text: #f3f5f8;
+    --ih-text-secondary: #c0c8d3;
+    --ih-text-muted: #9aa6b4;
+    --ih-text-on-primary: #0a1320;
+    --ih-text-on-accent: #17140b;
+    --ih-primary: #7ea8f2;
+    --ih-primary-hover: #9bbdff;
+    --ih-primary-soft: #263b58;
+    --ih-accent: #f29b4b;
+    --ih-accent-hover: #ffc071;
+    --ih-accent-soft: #613719;
+    --ih-border: #354253;
+    --ih-divider: #2a3543;
+    --ih-focus: #7ea8f2;
+    --ih-success: #7bba94;
+    --ih-success-soft: #203d30;
+    --ih-error: #e07a74;
+    --ih-error-soft: #4b2929;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--ih-bg); color: var(--ih-text);
+  font: 400 15px/1.45 var(--ih-font-body);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--ih-divider); background: var(--ih-surface);
+}
+h1 { font: 700 24px/1 var(--ih-font-heading); margin: 0; letter-spacing: .02em; display: flex; align-items: baseline; gap: 8px; }
+h2 { font: 600 20px/1.1 var(--ih-font-heading); margin: 0 0 8px; }
+.version {
+  font: 500 12px/1 var(--ih-font-code); color: var(--ih-text-secondary);
+  padding: 3px 6px; border: 1px solid var(--ih-border); border-radius: var(--ih-radius);
+}
+.status-line { font: 500 13px/1.3 var(--ih-font-code); color: var(--ih-text-secondary); }
+main { display: grid; gap: 12px; padding: 12px; max-width: 1200px; margin: 0 auto; }
+@media (min-width: 900px) and (orientation: landscape) { main { grid-template-columns: 1fr 340px; } }
+.stage {
+  position: relative; background: #000; border-radius: var(--ih-radius); overflow: hidden;
+  border: 1px solid var(--ih-border); aspect-ratio: 16 / 9;
+}
+.stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.stage .placeholder {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px;
+  color: #f3f5f8; font-weight: 500;
+}
+.flash { position: absolute; inset: 0; border: 6px solid var(--ih-accent); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.flash.on { opacity: 1; transition: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  background: var(--ih-surface); border: 1px solid var(--ih-border); color: var(--ih-text);
+  font: 500 13px/1 var(--ih-font-body);
+}
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ih-text-secondary); }
+.chip.live { border-color: var(--ih-primary); background: var(--ih-primary-soft); }
+.chip.live .dot { background: var(--ih-primary); border-color: var(--ih-primary); }
+.chip.fired { border-color: var(--ih-accent); background: var(--ih-accent-soft); }
+.chip.fired .dot { background: var(--ih-accent); border-color: var(--ih-accent); }
+.chip .count { font-family: var(--ih-font-code); color: var(--ih-text-secondary); }
+.chip.off { color: var(--ih-text-secondary); text-decoration: line-through; }
+.panel { background: var(--ih-surface); border: 1px solid var(--ih-border); border-radius: var(--ih-radius); padding: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stack { display: grid; gap: 12px; }
+button, select {
+  font: 600 14px/1 var(--ih-font-body); min-height: 44px; padding: 0 14px; border-radius: var(--ih-radius);
+  border: 1px solid var(--ih-border); background: var(--ih-surface-alt); color: var(--ih-text); cursor: pointer;
+}
+button:hover { background: var(--ih-surface-selected); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--ih-focus); outline-offset: 2px; }
+button.primary { background: var(--ih-primary); border-color: var(--ih-primary); color: var(--ih-text-on-primary); }
+button.primary:hover { background: var(--ih-primary-hover); }
+button.accent { background: var(--ih-accent); border-color: var(--ih-accent); color: var(--ih-text-on-accent); }
+button.accent:hover { background: var(--ih-accent-hover); }
+button.danger { color: var(--ih-error); border-color: var(--ih-error); background: var(--ih-surface); }
+button.danger.armed { background: var(--ih-error-soft); color: var(--ih-text); }
+button:disabled { cursor: not-allowed; color: var(--ih-text-secondary); background: var(--ih-surface-alt); border-color: var(--ih-border); }
+label { font-weight: 500; }
+.field { display: grid; gap: 4px; }
+.toggles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.toggles label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary); }
+.hint { color: var(--ih-text-secondary); font-size: 14px; margin: 6px 0 0; }
+.gallery-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; margin-top: 10px; }
+.grid figure { margin: 0; position: relative; }
+.grid img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: var(--ih-radius); display: block; border: 1px solid var(--ih-border); }
+.grid figcaption {
+  position: absolute; left: 4px; bottom: 4px; padding: 2px 6px; border-radius: 999px;
+  background: var(--ih-surface); color: var(--ih-text); font: 500 11px/1.3 var(--ih-font-body); border: 1px solid var(--ih-border);
+}
+.grid button.thumb { padding: 0; border: 0; background: none; min-height: 0; display: block; width: 100%; }
+.viewer {
+  position: fixed; inset: 0; background: rgba(5, 8, 12, .94); display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px; padding: 16px; z-index: 20;
+}
+.viewer.open { display: flex; }
+.viewer img { max-width: 100%; max-height: 78vh; border-radius: var(--ih-radius); }
+.viewer .meta { color: #f3f5f8; font: 500 13px/1.3 var(--ih-font-code); }
+.dimmer { position: fixed; inset: 0; background: #000; display: none; z-index: 30; color: #c0c8d3; align-items: flex-end; justify-content: center; padding-bottom: 40px; font-size: 14px; }
+.dimmer.on { display: flex; }
+.toast {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40;
+  background: var(--ih-surface); color: var(--ih-text); border: 1px solid var(--ih-accent);
+  padding: 10px 14px; border-radius: var(--ih-radius); font-weight: 500; display: none; max-width: 90vw;
+}
+.toast.on { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kitchen Cam <span class="version" data-version></span></h1>
+  <span class="status-line" id="status">Idle</span>
+</header>
+
+<main>
+  <div class="stack">
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="flash" id="flash"></div>
+      <div class="placeholder" id="placeholder">Prop the phone up facing the kitchen, then tap Start.</div>
+    </div>
+    <div class="chips" id="chips" aria-live="polite"></div>
+  </div>
+
+  <div class="stack">
+    <section class="panel stack">
+      <div class="row">
+        <button class="primary" id="startBtn">Start</button>
+        <button id="burstBtn" disabled>Manual burst</button>
+        <button id="flipBtn" disabled>Flip camera</button>
+        <button id="dimBtn" disabled>Dim screen</button>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="burstSize">Burst size</label>
+          <select id="burstSize">
+            <option value="4">4 shots</option>
+            <option value="6" selected>6 shots</option>
+            <option value="10">10 shots</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="sensitivity">Sensitivity</label>
+          <select id="sensitivity">
+            <option value="0.8">Low</option>
+            <option value="1" selected>Normal</option>
+            <option value="1.25">High</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="quality">Resolution</label>
+          <select id="quality">
+            <option value="1280x720">720p</option>
+            <option value="1920x1080" selected>1080p</option>
+            <option value="3840x2160">4K (if supported)</option>
+          </select>
+        </div>
+      </div>
+      <div class="toggles" id="toggles"></div>
+      <label><input type="checkbox" id="showOverlay" checked> Show tracking overlay</label>
+      <p class="hint">Everything runs on this phone. No images leave the device until you download or share them.</p>
+    </section>
+
+    <section class="panel">
+      <div class="gallery-head">
+        <h2 id="galleryTitle">Captures</h2>
+        <div class="row">
+          <select id="filter" aria-label="Filter captures"><option value="all">All moments</option></select>
+          <button id="zipBtn">Download ZIP</button>
+          <button id="shareBtn">Share</button>
+          <button class="danger" id="clearBtn">Clear all</button>
+        </div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+  </div>
+</main>
+
+<div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <img id="viewerImg" alt="">
+  <div class="meta" id="viewerMeta"></div>
+  <div class="row">
+    <button id="viewerPrev">Previous</button>
+    <button class="accent" id="viewerSave">Save</button>
+    <button id="viewerNext">Next</button>
+    <button id="viewerClose">Close</button>
+  </div>
+</div>
+<div class="dimmer" id="dimmer">Still capturing. Tap anywhere to wake.</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module">
+const APP_VERSION = '0.1.1';
+const APP_NAME = 'Kitchen Cam';
+document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
+console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
+
+const MP_VER = '0.10.14';
+const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}`;
+const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+
+// ---------- Moments ----------
+// hold = consecutive detection frames required; cooldown in seconds
+const MOMENTS = {
+  smile: { label: 'Smiling',            hold: 3, cooldown: 10 },
+  taste: { label: 'Taste testing',      hold: 2, cooldown: 6  },
+  smell: { label: 'Smelling',           hold: 3, cooldown: 8  },
+  look:  { label: 'Looking at each other', hold: 4, cooldown: 10 },
+  prep:  { label: 'Prep action',        hold: 5, cooldown: 25 },
+};
+const GLOBAL_GAP_MS = 2500;
+const BURST_INTERVAL_MS = 130;
+const PREROLL_FRAMES = 2;
+const PREROLL_INTERVAL_MS = 220;
+const DETECT_INTERVAL_MS = 90;
+
+const state = {
+  enabled: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, true])),
+  streak: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
+  lastFired: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
+  counts: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
+  live: {},
+  lastBurst: 0,
+  running: false,
+  facing: 'environment',
+  stream: null,
+  face: null, hand: null,
+  prevHands: null, prevHandsT: 0,
+  preroll: [],
+  wakeLock: null,
+  session: new Date().toISOString().slice(0, 10),
+};
+
+const $ = id => document.getElementById(id);
+const video = $('video'), overlay = $('overlay'), octx = overlay.getContext('2d');
+const setStatus = t => { $('status').textContent = t; };
+function toast(msg, ms = 2500) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);
+}
+
+// ---------- UI: chips + toggles ----------
+function renderChips() {
+  $('chips').innerHTML = Object.entries(MOMENTS).map(([k, m]) => {
+    const cls = !state.enabled[k] ? 'off' : (performance.now() - state.lastFired[k] < 1500 ? 'fired' : (state.live[k] ? 'live' : ''));
+    const word = !state.enabled[k] ? 'off' : (cls === 'fired' ? 'captured' : (cls === 'live' ? 'seen' : ''));
+    return `<span class="chip ${cls}"><span class="dot"></span>${m.label}${word ? ' · ' + word : ''} <span class="count">${state.counts[k]}</span></span>`;
+  }).join('');
+}
+$('toggles').innerHTML = Object.entries(MOMENTS).map(([k, m]) =>
+  `<label><input type="checkbox" data-moment="${k}" checked> ${m.label}</label>`).join('');
+$('toggles').addEventListener('change', e => {
+  const k = e.target.dataset.moment; if (k) { state.enabled[k] = e.target.checked; renderChips(); }
+});
+$('filter').innerHTML += Object.entries(MOMENTS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('')
+  + '<option value="manual">Manual</option>';
+renderChips();
+
+// ---------- Storage (IndexedDB) ----------
+let db = null;
+function openDB() {
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.open('kitchen-cam', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('shots', { keyPath: 'id' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+const memShots = []; // fallback / cache: {id, ts, tag, name, blob, url}
+async function putShot(shot) {
+  memShots.unshift(shot);
+  if (!db) return;
+  try {
+    await new Promise((res, rej) => {
+      const tx = db.transaction('shots', 'readwrite');
+      tx.objectStore('shots').put({ id: shot.id, ts: shot.ts, tag: shot.tag, name: shot.name, blob: shot.blob });
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  } catch (e) { console.warn('IDB write failed', e); }
+}
+async function loadShots() {
+  if (!db) return;
+  try {
+    const all = await new Promise((res, rej) => {
+      const req = db.transaction('shots').objectStore('shots').getAll();
+      req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+    });
+    all.sort((a, b) => b.ts - a.ts).forEach(s => memShots.push({ ...s, url: URL.createObjectURL(s.blob) }));
+  } catch (e) { console.warn('IDB read failed', e); }
+}
+async function clearShots() {
+  memShots.forEach(s => URL.revokeObjectURL(s.url)); memShots.length = 0;
+  if (db) try { db.transaction('shots', 'readwrite').objectStore('shots').clear(); } catch {}
+  renderGallery();
+}
+
+// ---------- Gallery ----------
+function filtered() {
+  const f = $('filter').value;
+  return f === 'all' ? memShots : memShots.filter(s => s.tag === f);
+}
+const tagLabel = t => MOMENTS[t]?.label ?? 'Manual';
+function renderGallery() {
+  const list = filtered();
+  $('galleryTitle').textContent = `Captures (${memShots.length})`;
+  $('grid').innerHTML = list.slice(0, 300).map((s, i) =>
+    `<figure><button class="thumb" data-i="${i}" aria-label="Open ${tagLabel(s.tag)} photo"><img loading="lazy" src="${s.url}" alt="${tagLabel(s.tag)}"></button><figcaption>${tagLabel(s.tag)}</figcaption></figure>`).join('');
+}
+$('filter').addEventListener('change', renderGallery);
+let viewIdx = 0;
+function openViewer(i) {
+  const list = filtered(); if (!list.length) return;
+  viewIdx = (i + list.length) % list.length;
+  const s = list[viewIdx];
+  $('viewerImg').src = s.url; $('viewerImg').alt = tagLabel(s.tag);
+  $('viewerMeta').textContent = `${s.name} · ${viewIdx + 1}/${list.length}`;
+  $('viewer').classList.add('open');
+}
+$('grid').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) openViewer(+b.dataset.i); });
+$('viewerPrev').onclick = () => openViewer(viewIdx - 1);
+$('viewerNext').onclick = () => openViewer(viewIdx + 1);
+$('viewerClose').onclick = () => $('viewer').classList.remove('open');
+$('viewerSave').onclick = () => saveFiles([filtered()[viewIdx]]);
+document.addEventListener('keydown', e => {
+  if (!$('viewer').classList.contains('open')) return;
+  if (e.key === 'Escape') $('viewerClose').click();
+  if (e.key === 'ArrowLeft') $('viewerPrev').click();
+  if (e.key === 'ArrowRight') $('viewerNext').click();
+});
+
+async function saveFiles(shots) {
+  if (!shots.length) return toast('Nothing to save yet');
+  const files = shots.map(s => new File([s.blob], s.name, { type: 'image/jpeg' }));
+  try {
+    if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, title: 'Kitchen Cam' }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  shots.forEach(s => { const a = document.createElement('a'); a.href = s.url; a.download = s.name; a.click(); });
+}
+$('shareBtn').onclick = () => {
+  const list = filtered();
+  if (list.length > 40) toast('Sharing the newest 40. Use Download ZIP for everything.');
+  saveFiles(list.slice(0, 40));
+};
+$('zipBtn').onclick = async () => {
+  const list = filtered(); if (!list.length) return toast('Nothing to download yet');
+  $('zipBtn').disabled = true; setStatus('Zipping…');
+  try {
+    const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+    const zip = new JSZip();
+    list.forEach(s => zip.folder(tagLabel(s.tag).replace(/\s+/g, '-').toLowerCase()).file(s.name, s.blob));
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `kitchen-cam_${state.session}.zip`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  } catch (e) { toast('ZIP failed: ' + e.message); }
+  $('zipBtn').disabled = false; setStatus(state.running ? 'Watching' : 'Idle');
+};
+$('clearBtn').onclick = () => {
+  const b = $('clearBtn');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = 'Tap again to delete';
+    setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Clear all'; }, 3000);
+    return;
+  }
+  b.classList.remove('armed'); b.textContent = 'Clear all'; clearShots(); toast('All captures deleted');
+};
+
+// ---------- Capture pipeline ----------
+const encCanvas = document.createElement('canvas');
+const encCtx = encCanvas.getContext('2d');
+const encodeQueue = [];
+let encoding = false;
+const pad = n => String(n).padStart(2, '0');
+function stamp(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}-${pad(d.getSeconds())}`; }
+
+async function grabBitmap() {
+  if (video.readyState < 2) return null;
+  try { return await createImageBitmap(video); } catch { return null; }
+}
+async function runEncoder() {
+  if (encoding) return; encoding = true;
+  while (encodeQueue.length) {
+    const job = encodeQueue.shift();
+    encCanvas.width = job.bmp.width; encCanvas.height = job.bmp.height;
+    encCtx.drawImage(job.bmp, 0, 0); job.bmp.close?.();
+    const blob = await new Promise(r => encCanvas.toBlob(r, 'image/jpeg', 0.92));
+    if (!blob) continue;
+    const name = `${stamp(job.date)}_${job.tag}_${pad(job.seq)}.jpg`;
+    await putShot({ id: `${job.date.getTime()}_${job.tag}_${job.seq}_${Math.random().toString(36).slice(2, 6)}`, ts: job.date.getTime() + job.seq, tag: job.tag, name, blob, url: URL.createObjectURL(blob) });
+    renderGallery();
+  }
+  encoding = false;
+}
+
+// rolling pre-roll so fast moments (a quick taste) aren't missed
+async function prerollTick() {
+  if (!state.running) return;
+  const bmp = await grabBitmap();
+  if (bmp) {
+    state.preroll.push(bmp);
+    while (state.preroll.length > PREROLL_FRAMES) state.preroll.shift().close?.();
+  }
+  setTimeout(prerollTick, PREROLL_INTERVAL_MS);
+}
+
+async function burst(tag) {
+  const now = performance.now();
+  state.lastBurst = now;
+  if (MOMENTS[tag]) { state.lastFired[tag] = now; state.counts[tag]++; }
+  const flash = $('flash'); flash.classList.add('on'); setTimeout(() => flash.classList.remove('on'), 120);
+  navigator.vibrate?.(30);
+  const date = new Date();
+  let seq = 1;
+  // hand pre-roll frames over to the burst
+  const pre = state.preroll.splice(0);
+  pre.forEach(bmp => encodeQueue.push({ bmp, tag, date, seq: seq++ }));
+  const n = +$('burstSize').value;
+  for (let i = 0; i < n; i++) {
+    const bmp = await grabBitmap();
+    if (bmp) encodeQueue.push({ bmp, tag, date, seq: seq++ });
+    await new Promise(r => setTimeout(r, BURST_INTERVAL_MS));
+  }
+  console.log(`[${APP_NAME}] burst: ${tag} (${seq - 1} frames)`);
+  runEncoder();
+  renderChips();
+}
+$('burstBtn').onclick = () => burst('manual');
+
+// ---------- Geometry helpers ----------
+const W = () => video.videoWidth, H = () => video.videoHeight;
+const px = p => ({ x: p.x * W(), y: p.y * H() });
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+function bs(blend) { const o = {}; blend?.categories?.forEach(c => o[c.categoryName] = c.score); return o; }
+
+function analyseFaces(faceRes) {
+  const faces = (faceRes?.faceLandmarks || []).map((lm, i) => {
+    const b = bs(faceRes.faceBlendshapes?.[i]);
+    const cheekL = px(lm[234]), cheekR = px(lm[454]);
+    const width = dist(cheekL, cheekR);
+    const nose = px(lm[1]);
+    const mouth = mid(px(lm[13]), px(lm[14]));
+    const chin = px(lm[152]);
+    const centre = mid(cheekL, cheekR);
+    return {
+      lm, width, nose, mouth, chin, centre,
+      smile: ((b.mouthSmileLeft || 0) + (b.mouthSmileRight || 0)) / 2,
+      jawOpen: b.jawOpen || 0,
+      eyesClosed: ((b.eyeBlinkLeft || 0) + (b.eyeBlinkRight || 0)) / 2,
+      // + = nose turned toward image-right, - = toward image-left
+      yaw: width > 0 ? (nose.x - centre.x) / width : 0,
+    };
+  });
+  return faces.filter(f => f.width > 20);
+}
+
+function handPoints(handRes) {
+  return (handRes?.landmarks || []).map(lm => ({
+    lm,
+    tips: [4, 8, 12].map(i => px(lm[i])),
+    wrist: px(lm[0]),
+    centroid: lm.reduce((a, p) => ({ x: a.x + p.x * W() / lm.length, y: a.y + p.y * H() / lm.length }), { x: 0, y: 0 }),
+  }));
+}
+
+function evaluate(faces, hands, sens) {
+  const live = { smile: false, taste: false, smell: false, look: false, prep: false };
+
+  // Smiling: any face
+  if (faces.some(f => f.smile > 0.55 / sens)) live.smile = true;
+
+  // Taste / smell: fingertips (or what they hold) near mouth or nose
+  for (const f of faces) {
+    for (const h of hands) {
+      const dMouth = Math.min(...h.tips.map(t => dist(t, f.mouth))) / f.width;
+      const dNose = Math.min(...h.tips.map(t => dist(t, f.nose))) / f.width;
+      const tipAboveMouth = h.tips.some(t => t.y < f.mouth.y);
+      if (dMouth < 0.5 * sens || (dMouth < 0.85 * sens && f.jawOpen > 0.3 / sens)) live.taste = true;
+      else if (dNose < 0.6 * sens && tipAboveMouth && f.jawOpen < 0.25) live.smell = true;
+      else if (dNose < 1.0 * sens && f.eyesClosed > 0.55 && f.jawOpen < 0.2) live.smell = true; // eyes-closed sniff of a pan/glass
+    }
+  }
+
+  // Looking at each other: two faces turned toward one another
+  if (faces.length >= 2) {
+    const [a, b] = [...faces].sort((p, q) => q.width - p.width).slice(0, 2).sort((p, q) => p.centre.x - q.centre.x);
+    const t = 0.09 / sens;
+    if (a.yaw > t && b.yaw < -t) live.look = true;
+  }
+
+  // Prep action: hands below face level, moving briskly
+  const now = performance.now();
+  const lowestChin = faces.length ? Math.max(...faces.map(f => f.chin.y)) : 0;
+  const workHands = hands.filter(h => h.wrist.y > lowestChin);
+  if (workHands.length && state.prevHands && state.prevHands.length) {
+    const dt = (now - state.prevHandsT) / 1000;
+    if (dt > 0 && dt < 0.5) {
+      let total = 0;
+      for (const h of workHands) {
+        const nearest = Math.min(...state.prevHands.map(p => dist(p, h.centroid)));
+        total += nearest;
+      }
+      const speed = total / workHands.length / H() / dt; // frame-heights per second
+      if (speed > 0.22 / sens && speed < 3) live.prep = true;
+    }
+  }
+  state.prevHands = workHands.map(h => h.centroid);
+  state.prevHandsT = now;
+  return live;
+}
+
+// ---------- Overlay ----------
+function drawOverlay(faces, hands) {
+  const vw = W(), vh = H();
+  const rect = overlay.getBoundingClientRect();
+  overlay.width = rect.width * devicePixelRatio; overlay.height = rect.height * devicePixelRatio;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!$('showOverlay').checked || !vw) return;
+  // match object-fit: contain
+  const s = Math.min(overlay.width / vw, overlay.height / vh);
+  const ox = (overlay.width - vw * s) / 2, oy = (overlay.height - vh * s) / 2;
+  const T = p => [ox + p.x * s, oy + p.y * s];
+  octx.lineWidth = 2 * devicePixelRatio;
+  for (const f of faces) {
+    const xs = f.lm.map(p => p.x * vw), ys = f.lm.map(p => p.y * vh);
+    const [x0, y0] = T({ x: Math.min(...xs), y: Math.min(...ys) });
+    const [x1, y1] = T({ x: Math.max(...xs), y: Math.max(...ys) });
+    octx.strokeStyle = f.smile > 0.55 ? '#f29b4b' : '#7ea8f2';
+    octx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    const [nx, ny] = T(f.nose);
+    octx.beginPath(); octx.moveTo(nx, ny); octx.lineTo(nx + f.yaw * 160 * devicePixelRatio, ny); octx.stroke();
+  }
+  octx.fillStyle = '#f29b4b';
+  for (const h of hands) for (const t of h.tips) {
+    const [x, y] = T(t); octx.beginPath(); octx.arc(x, y, 4 * devicePixelRatio, 0, Math.PI * 2); octx.fill();
+  }
+}
+
+// ---------- Detection loop ----------
+async function detectLoop() {
+  if (!state.running) return;
+  const t0 = performance.now();
+  if (video.readyState >= 2 && !document.hidden) {
+    try {
+      const faceRes = state.face.detectForVideo(video, t0);
+      const handRes = state.hand.detectForVideo(video, t0 + 0.5);
+      const faces = analyseFaces(faceRes);
+      const hands = handPoints(handRes);
+      const sens = +$('sensitivity').value;
+      state.live = evaluate(faces, hands, sens);
+      drawOverlay(faces, hands);
+
+      const now = performance.now();
+      let fire = null;
+      // priority: the fleeting moments first
+      for (const k of ['taste', 'smell', 'look', 'smile', 'prep']) {
+        state.streak[k] = state.live[k] && state.enabled[k] ? state.streak[k] + 1 : 0;
+        const m = MOMENTS[k];
+        if (!fire && state.streak[k] >= m.hold && now - state.lastFired[k] > m.cooldown * 1000 && now - state.lastBurst > GLOBAL_GAP_MS) fire = k;
+      }
+      if (fire) { state.streak[fire] = 0; burst(fire); }
+      setStatus(`Watching · ${faces.length} face${faces.length === 1 ? '' : 's'} · ${hands.length} hand${hands.length === 1 ? '' : 's'}`);
+      renderChips();
+    } catch (e) { console.warn(e); }
+  }
+  setTimeout(detectLoop, Math.max(0, DETECT_INTERVAL_MS - (performance.now() - t0)));
+}
+
+// ---------- Camera ----------
+async function startCamera() {
+  state.stream?.getTracks().forEach(t => t.stop());
+  const [w, h] = $('quality').value.split('x').map(Number);
+  state.stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: state.facing }, width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 30 } },
+  });
+  video.srcObject = state.stream;
+  await video.play();
+  $('stage').style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+  console.log(`[${APP_NAME}] camera ${video.videoWidth}x${video.videoHeight} (${state.facing})`);
+}
+
+async function loadModels() {
+  setStatus('Loading models…');
+  const { FilesetResolver, FaceLandmarker, HandLandmarker } = await import(`${MP_BASE}/vision_bundle.mjs`);
+  const fileset = await FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+  const make = async (Cls, opts, delegate) => Cls.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate } });
+  const faceOpts = { baseOptions: { modelAssetPath: FACE_MODEL }, runningMode: 'VIDEO', numFaces: 2, outputFaceBlendshapes: true };
+  const handOpts = { baseOptions: { modelAssetPath: HAND_MODEL }, runningMode: 'VIDEO', numHands: 4 };
+  try {
+    state.face = await make(FaceLandmarker, faceOpts, 'GPU');
+    state.hand = await make(HandLandmarker, handOpts, 'GPU');
+  } catch (e) {
+    console.warn('GPU delegate failed, using CPU', e);
+    state.face = await make(FaceLandmarker, faceOpts, 'CPU');
+    state.hand = await make(HandLandmarker, handOpts, 'CPU');
+  }
+}
+
+async function requestWakeLock() {
+  try { state.wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.running) requestWakeLock();
+});
+
+$('startBtn').onclick = async () => {
+  if (state.running) { stop(); return; }
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    toast('The camera needs HTTPS. Host this page (e.g. GitHub Pages) and open it from there.', 6000);
+    return;
+  }
+  $('startBtn').disabled = true;
+  try {
+    if (!state.face) await loadModels();
+    await startCamera();
+    $('placeholder').style.display = 'none';
+    state.running = true;
+    await requestWakeLock();
+    ['burstBtn', 'flipBtn', 'dimBtn'].forEach(id => $(id).disabled = false);
+    $('startBtn').textContent = 'Stop'; $('startBtn').className = 'accent';
+    detectLoop(); prerollTick();
+  } catch (e) {
+    console.error(e); toast('Could not start: ' + e.message, 6000); setStatus('Error');
+  }
+  $('startBtn').disabled = false;
+};
+function stop() {
+  state.running = false;
+  state.stream?.getTracks().forEach(t => t.stop());
+  state.preroll.splice(0).forEach(b => b.close?.());
+  state.wakeLock?.release?.(); state.wakeLock = null;
+  ['burstBtn', 'flipBtn', 'dimBtn'].forEach(id => $(id).disabled = true);
+  $('startBtn').textContent = 'Start'; $('startBtn').className = 'primary';
+  $('placeholder').style.display = ''; octx.clearRect(0, 0, overlay.width, overlay.height);
+  setStatus('Idle');
+}
+$('flipBtn').onclick = async () => {
+  state.facing = state.facing === 'environment' ? 'user' : 'environment';
+  try { await startCamera(); } catch (e) { toast(e.message); }
+};
+$('quality').onchange = async () => { if (state.running) try { await startCamera(); } catch (e) { toast(e.message); } };
+$('dimBtn').onclick = () => $('dimmer').classList.add('on');
+$('dimmer').onclick = () => $('dimmer').classList.remove('on');
+
+// ---------- Boot ----------
+db = await openDB();
+await loadShots();
+renderGallery();
+if (!db) toast('Storage unavailable: photos will be lost if the page reloads. Download them as you go.', 5000);
+</script>
+</body>
+</html>

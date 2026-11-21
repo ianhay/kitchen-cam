@@ -1,0 +1,41 @@
+# Kitchen Cam
+
+A single-file web app that runs in your phone browser and automatically captures short photo bursts of two people cooking together. It uses the camera with on-device face and hand tracking (MediaPipe) to spot the moments worth keeping.
+
+**Version:** 0.1.1
+
+## How to use
+
+1. Open the Pages URL on your phone: https://ianhay.github.io/kitchen-cam/
+2. Prop the phone up facing the kitchen.
+3. Tap **Start** and allow camera access.
+4. Cook. Bursts are captured automatically; **Manual burst** takes one on demand.
+5. Review captures in the gallery, then **Download ZIP** or **Share** them.
+
+The camera needs HTTPS, which is the only reason the page is hosted.
+
+## Moments it captures
+
+| Moment | What triggers it |
+| --- | --- |
+| Smiling | Any detected face with a clear smile |
+| Taste testing | Fingertips near the mouth |
+| Smelling | Fingertips near the nose, or an eyes-closed sniff |
+| Looking at each other | Two faces turned toward one another |
+| Prep action | Hands below face level moving briskly |
+
+Detection thresholds are first guesses and not yet tuned. Burst size, sensitivity and resolution can be changed in the app.
+
+## Privacy
+
+All processing happens on your device. Nothing is uploaded: photos are stored in your browser's IndexedDB and leave the device only when you download or share them. There is no backend and no analytics.
+
+On load the page fetches code and assets from public CDNs (MediaPipe and JSZip from jsDelivr, the MediaPipe model files from Google Cloud Storage, and fonts from Google Fonts). Those requests carry no camera data.
+
+## Development
+
+No build step. `index.html` is the whole app. The version lives in `APP_VERSION` in the script and in `<meta name="version">`; keep them in sync and see [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE)
