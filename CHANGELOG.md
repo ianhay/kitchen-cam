@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-11-21
+
+- The moment pills under the camera view are now a fixed size. They used to grow and wrap onto extra lines when "seen" or "captured" was appended to the label. State is shown by the dot and colour, and the words are kept for screen readers only.
+- Pills are laid out on an even grid (two columns in portrait, three in landscape). The "Looking at each other" pill is labelled "Eye contact" so it fits; the toggle, filter and ZIP folder keep the full name. Any other long label is trimmed with an ellipsis instead of widening the pill.
+- Fixed all pills briefly showing the orange "captured" state for the first 1.5 seconds after the page loads.
+
 ## 0.1.6 - 2026-11-21
 
 - In the photo viewer, tap the left half of the screen to go to the previous photo and the right half for the next one. Faint arrows at the screen edges show the tap zones. Swiping, the buttons and the arrow keys still work.

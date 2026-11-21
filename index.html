@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.6">
+<meta name="version" content="0.1.7">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -105,19 +105,23 @@ main { display: grid; gap: 12px; padding: 12px; max-width: 1200px; margin: 0 aut
 }
 .flash { position: absolute; inset: 0; border: 6px solid var(--ih-accent); opacity: 0; pointer-events: none; transition: opacity .25s; }
 .flash.on { opacity: 1; transition: none; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px;
   background: var(--ih-surface); border: 1px solid var(--ih-border); color: var(--ih-text);
-  font: 500 13px/1 var(--ih-font-body);
+  font: 500 13px/1 var(--ih-font-body); white-space: nowrap; overflow: hidden;
 }
+.chip .dot { flex: none; }
+.chip .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chip .count { flex: none; min-width: 3ch; text-align: right; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .chip .dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ih-text-secondary); }
 .chip.live { border-color: var(--ih-primary); background: var(--ih-primary-soft); }
 .chip.live .dot { background: var(--ih-primary); border-color: var(--ih-primary); }
 .chip.fired { border-color: var(--ih-accent); background: var(--ih-accent-soft); }
 .chip.fired .dot { background: var(--ih-accent); border-color: var(--ih-accent); }
 .chip .count { font-family: var(--ih-font-code); color: var(--ih-text-secondary); }
-.chip.off { color: var(--ih-text-secondary); text-decoration: line-through; }
+.chip.off .lbl { color: var(--ih-text-secondary); text-decoration: line-through; }
 .panel { background: var(--ih-surface); border: 1px solid var(--ih-border); border-radius: var(--ih-radius); padding: 12px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .stack { display: grid; gap: 12px; }
@@ -293,7 +297,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.6';
+const APP_VERSION = '0.1.7';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -309,7 +313,7 @@ const MOMENTS = {
   smile: { label: 'Smiling',            hold: 3, cooldown: 10 },
   taste: { label: 'Taste testing',      hold: 2, cooldown: 6  },
   smell: { label: 'Smelling',           hold: 3, cooldown: 8  },
-  look:  { label: 'Looking at each other', hold: 4, cooldown: 10 },
+  look:  { label: 'Looking at each other', chip: 'Eye contact', hold: 4, cooldown: 10 },
   kiss:  { label: 'Kissing',            hold: 2, cooldown: 12 },
   prep: { label: 'Prep action',        hold: 5, cooldown: 25 },
 };
@@ -322,7 +326,7 @@ const DETECT_INTERVAL_MS = 90;
 const state = {
   enabled: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, true])),
   streak: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
-  lastFired: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
+  lastFired: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, -1e9])),
   counts: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
   live: {},
   lastBurst: 0,
@@ -349,7 +353,7 @@ function renderChips() {
   $('chips').innerHTML = Object.entries(MOMENTS).map(([k, m]) => {
     const cls = !state.enabled[k] ? 'off' : (performance.now() - state.lastFired[k] < 1500 ? 'fired' : (state.live[k] ? 'live' : ''));
     const word = !state.enabled[k] ? 'off' : (cls === 'fired' ? 'captured' : (cls === 'live' ? 'seen' : ''));
-    return `<span class="chip ${cls}"><span class="dot"></span>${m.label}${word ? ' · ' + word : ''} <span class="count">${state.counts[k]}</span></span>`;
+    return `<span class="chip ${cls}"><span class="dot"></span><span class="lbl">${m.chip ?? m.label}</span>${word ? `<span class="sr">${word}</span>` : ''}<span class="count">${state.counts[k]}</span></span>`;
   }).join('');
 }
 $('toggles').innerHTML = Object.entries(MOMENTS).map(([k, m]) =>
