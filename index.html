@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.8">
+<meta name="version" content="0.1.9">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -140,6 +140,10 @@ button:disabled { cursor: not-allowed; color: var(--ih-text-secondary); backgrou
 label { font-weight: 500; }
 .field { display: grid; gap: 4px; }
 input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary); }
+input[type=range] { width: 100%; min-height: 44px; accent-color: var(--ih-primary); margin: 0; }
+.lens-box select { width: 100%; }
+#zoomPresets button { min-width: 52px; padding: 0 10px; }
+#zoomVal { font-family: var(--ih-font-code); color: var(--ih-text-secondary); margin-left: 6px; }
 .hint { color: var(--ih-text-secondary); font-size: 14px; margin: 6px 0 0; }
 .gallery-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; margin-top: 10px; }
@@ -220,6 +224,18 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
           <button id="flipBtn" disabled>Flip camera</button>
           <button id="dimBtn" disabled>Dim screen</button>
         </div>
+        <div class="stack lens-box" id="lensBox" hidden>
+          <div class="field">
+            <label for="lens">Lens</label>
+            <select id="lens"></select>
+          </div>
+          <div class="field" id="zoomBox" hidden>
+            <label for="zoom">Zoom <output id="zoomVal" for="zoom">1×</output></label>
+            <input type="range" id="zoom" min="1" max="2" step="0.1" value="1">
+            <div class="row" id="zoomPresets"></div>
+          </div>
+          <p class="hint" id="lensHint" hidden>This phone and browser only offer one lens.</p>
+        </div>
         <label><input type="checkbox" id="keepAwake" checked> Keep screen on</label>
         <p class="hint">Everything runs on this phone. No images leave the device until you download or share them.</p>
       </div>
@@ -294,7 +310,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.8';
+const APP_VERSION = '0.1.9';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -328,6 +344,8 @@ const state = {
   lastBurst: 0,
   running: false,
   facing: 'environment',
+  deviceId: null,   // chosen lens (camera device); null = let the browser pick for `facing`
+  zoom: 1,
   stream: null,
   face: null, hand: null,
   prevHands: null, prevHandsT: 0,
@@ -884,15 +902,94 @@ async function detectLoop() {
 async function startCamera() {
   state.stream?.getTracks().forEach(t => t.stop());
   const [w, h] = $('quality').value.split('x').map(Number);
-  state.stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: { facingMode: { ideal: state.facing }, width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 30 } },
-  });
+  const size = { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 30 } };
+  const open = video => navigator.mediaDevices.getUserMedia({ audio: false, video });
+  try {
+    state.stream = await open(state.deviceId
+      ? { deviceId: { exact: state.deviceId }, ...size }
+      : { facingMode: { ideal: state.facing }, ...size });
+  } catch (e) {
+    if (!state.deviceId) throw e;
+    // the chosen lens is gone or refused: fall back to the default camera
+    console.warn('Lens unavailable, using default', e);
+    state.deviceId = null; saveLens(null);
+    toast('That lens is not available. Using the default camera.');
+    state.stream = await open({ facingMode: { ideal: state.facing }, ...size });
+  }
   video.srcObject = state.stream;
   await video.play();
   $('stage').style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
   console.log(`[${APP_NAME}] camera ${video.videoWidth}x${video.videoHeight} (${state.facing})`);
+  try { await setupLenses(); } catch (e) { console.warn('Lens setup failed', e); }
 }
+
+// ---------- Lenses ----------
+// Phones expose their lenses two ways: as separate camera devices (iOS Safari, some Android)
+// and as a hardware zoom range on one device (Android Chrome, where <1 means ultra wide).
+const LENS_KEY = 'kitchen-cam.lens';
+function saveLens(id) { try { id ? localStorage.setItem(LENS_KEY, id) : localStorage.removeItem(LENS_KEY); } catch {} }
+function savedLens() { try { return localStorage.getItem(LENS_KEY); } catch { return null; } }
+const facingOf = label => /front|user|selfie|facetime/i.test(label) ? 'user' : /back|rear|environment/i.test(label) ? 'environment' : '';
+function lensName(label, i) {
+  if (!label) return `Camera ${i + 1}`;
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  const android = /^camera2? (\d+), facing (back|front)/i.exec(label);
+  if (android) return /ultra.?wide/i.test(label) ? 'Ultra wide' : /tele/i.test(label) ? 'Telephoto' : `${cap(android[2])} camera ${android[1]}`;
+  return label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+}
+async function setupLenses() {
+  const track = state.stream?.getVideoTracks()[0]; if (!track) return;
+  const st = track.getSettings();
+  let devs = [];
+  try { devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.deviceId); } catch {}
+  const here = devs.find(d => d.deviceId === st.deviceId);
+  const facing = st.facingMode || facingOf(here?.label || '') || state.facing;
+  state.facing = facing;
+  const list = devs.filter(d => d.deviceId === st.deviceId || !facingOf(d.label) || facingOf(d.label) === facing);
+  const names = list.map((d, i) => lensName(d.label, i));
+  const seen = {};
+  const sel = $('lens');
+  sel.replaceChildren(...list.map((d, i) => {
+    const o = document.createElement('option');
+    seen[names[i]] = (seen[names[i]] || 0) + 1;
+    o.value = d.deviceId;
+    o.textContent = names.filter(n => n === names[i]).length > 1 ? `${names[i]} ${seen[names[i]]}` : names[i];
+    return o;
+  }));
+  if (st.deviceId) sel.value = st.deviceId;
+  sel.disabled = list.length < 2;
+  setupZoom(track);
+  $('lensHint').hidden = list.length > 1 || !$('zoomBox').hidden;
+  $('lensBox').hidden = false;
+}
+function setupZoom(track) {
+  const z = track.getCapabilities?.().zoom;
+  const box = $('zoomBox'), range = $('zoom');
+  box.hidden = !z || !(z.max > z.min);
+  if (box.hidden) { state.zoom = 1; return; }
+  range.min = z.min; range.max = z.max; range.step = z.step || 0.1;
+  const presets = [0.5, 1, 2, 3, 5, 10].filter(p => p >= z.min - 0.01 && p <= z.max + 0.01);
+  $('zoomPresets').replaceChildren(...presets.map(p => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'toggle'; b.dataset.z = p; b.textContent = `${p}×`;
+    return b;
+  }));
+  applyZoom(Math.min(Math.max(state.zoom, z.min), z.max));
+}
+async function applyZoom(v) {
+  const track = state.stream?.getVideoTracks()[0]; if (!track) return;
+  try { await track.applyConstraints({ advanced: [{ zoom: v }] }); } catch (e) { console.warn('zoom failed', e); return; }
+  state.zoom = v;
+  $('zoom').value = v;
+  $('zoomVal').textContent = `${+(+v).toFixed(1)}×`;
+  $('zoomPresets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', Math.abs(+b.dataset.z - v) < 0.06));
+}
+$('zoom').addEventListener('input', e => applyZoom(+e.target.value));
+$('zoomPresets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) applyZoom(+b.dataset.z); });
+$('lens').onchange = async () => {
+  state.deviceId = $('lens').value; state.zoom = 1; saveLens(state.deviceId);
+  try { await startCamera(); } catch (e) { toast('Could not switch lens: ' + e.message, 4000); }
+};
 
 async function loadModels() {
   setStatus('Loading models…');
@@ -973,10 +1070,12 @@ function stop() {
   ['burstBtn', 'flipBtn', 'dimBtn'].forEach(id => $(id).disabled = true);
   $('startBtn').textContent = 'Start'; $('startBtn').className = 'primary';
   $('placeholder').style.display = ''; octx.clearRect(0, 0, overlay.width, overlay.height);
+  $('lensBox').hidden = true;
   setStatus('Idle');
 }
 $('flipBtn').onclick = async () => {
   state.facing = state.facing === 'environment' ? 'user' : 'environment';
+  state.deviceId = null; state.zoom = 1; saveLens(null); // a lens belongs to one side, so go back to that side's default
   try { await startCamera(); } catch (e) { toast(e.message); }
 };
 $('quality').onchange = async () => { if (state.running) try { await startCamera(); } catch (e) { toast(e.message); } };
@@ -984,6 +1083,7 @@ $('dimBtn').onclick = () => $('dimmer').classList.add('on');
 $('dimmer').onclick = () => $('dimmer').classList.remove('on');
 
 // ---------- Boot ----------
+state.deviceId = savedLens(); // remembered lens; falls back to the default camera if it is gone
 db = await openDB();
 await loadShots();
 renderGallery();

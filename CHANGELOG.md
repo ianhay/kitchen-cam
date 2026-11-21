@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - 2026-11-21
+
+- Added a **Lens** picker and **Zoom** control in the Controls tab (shown once the camera is running). The picker lists the camera devices the browser exposes for the current side (for example ultra wide, main, telephoto); the zoom slider and 0.5x / 1x / 2x / 5x buttons appear when the browser supports hardware zoom, and on many Android phones a zoom below 1x is the ultra-wide lens.
+- The chosen lens is remembered on the device. Flip camera returns to the default lens for the other side, and if a remembered lens is no longer available the app falls back to the default camera. Zoom is kept when the resolution changes.
+- If the phone or browser only offers one lens, the panel says so instead of showing an empty picker.
+
 ## 0.1.8 - 2026-11-21
 
 - Added **Clear unstarred** in the Captures tab: deletes every photo that isn't starred and keeps the keepers (tap twice to confirm). It is disabled until at least one photo is starred.

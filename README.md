@@ -2,15 +2,16 @@
 
 A single-file web app that runs in your phone browser and automatically captures short photo bursts of two people cooking together. It uses the camera with on-device face and hand tracking (MediaPipe) to spot the moments worth keeping.
 
-**Version:** 0.1.8
+**Version:** 0.1.9
 
 ## How to use
 
 1. Open the Pages URL on your phone: https://ianhay.github.io/kitchen-cam/
 2. Prop the phone up facing the kitchen.
 3. Tap **Start** (Controls tab) and allow camera access. Settings and the Captures gallery are in the other tabs.
-4. Cook. Bursts are captured automatically; **Manual burst** takes one on demand.
-5. Review captures in the Captures tab: tap a photo to open it and swipe, or tap the left or right side of the screen, to browse, tap ★ to mark keepers, or use **Select** (or long-press) to pick several at once. Filter to **Starred**, then **Download ZIP** or **Share**.
+4. Pick a **Lens** (wide, ultra wide, telephoto) and a **Zoom** level in the Controls tab once the camera is running. Which lenses appear depends on what your phone and browser expose.
+5. Cook. Bursts are captured automatically; **Manual burst** takes one on demand.
+6. Review captures in the Captures tab: tap a photo to open it and swipe, or tap the left or right side of the screen, to browse, tap ★ to mark keepers, or use **Select** (or long-press) to pick several at once. Filter to **Starred**, then **Download ZIP** or **Share**.
 
 The camera needs HTTPS, which is the only reason the page is hosted.
 
