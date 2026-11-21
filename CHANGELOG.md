@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-11-21
+
+- Removed the page header so the camera view sits at the top of the screen in landscape. The app name, version and status line moved to the top of the controls panel.
+
 ## 0.1.2 - 2026-11-21
 
 - Added a **Kissing** moment (toggle, chip, gallery filter). Fires when two faces are detected with mouth-to-mouth distance under 0.45 of face width, or a puckered mouth within 0.3 of face width of the other person's cheek. 2 frames to trigger, 12 s cooldown, checked before the other moments. Thresholds are untuned first guesses.
