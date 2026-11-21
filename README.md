@@ -2,7 +2,7 @@
 
 A single-file web app that runs in your phone browser and automatically captures short photo bursts of two people cooking together. It uses the camera with on-device face and hand tracking (MediaPipe) to spot the moments worth keeping.
 
-**Version:** 0.1.9
+**Version:** 0.1.10
 
 ## How to use
 

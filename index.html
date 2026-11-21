@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.9">
+<meta name="version" content="0.1.10">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -231,8 +231,9 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
           </div>
           <div class="field" id="zoomBox" hidden>
             <label for="zoom">Zoom <output id="zoomVal" for="zoom">1×</output></label>
-            <input type="range" id="zoom" min="1" max="2" step="0.1" value="1">
+            <div id="zoomRange"><input type="range" id="zoom" min="1" max="2" step="0.1" value="1"></div>
             <div class="row" id="zoomPresets"></div>
+            <p class="hint" id="zoomInfo" hidden></p>
           </div>
           <p class="hint" id="lensHint" hidden>This phone and browser only offer one lens.</p>
         </div>
@@ -310,7 +311,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.9';
+const APP_VERSION = '0.1.10';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -926,7 +927,7 @@ async function startCamera() {
 // ---------- Lenses ----------
 // Phones expose their lenses two ways: as separate camera devices (iOS Safari, some Android)
 // and as a hardware zoom range on one device (Android Chrome, where <1 means ultra wide).
-const LENS_KEY = 'kitchen-cam.lens';
+const LENS_KEY = 'kitchen-cam.lens', WIDE_KEY = 'kitchen-cam.wide';
 function saveLens(id) { try { id ? localStorage.setItem(LENS_KEY, id) : localStorage.removeItem(LENS_KEY); } catch {} }
 function savedLens() { try { return localStorage.getItem(LENS_KEY); } catch { return null; } }
 const facingOf = label => /front|user|selfie|facetime/i.test(label) ? 'user' : /back|rear|environment/i.test(label) ? 'environment' : '';
@@ -958,38 +959,77 @@ async function setupLenses() {
   }));
   if (st.deviceId) sel.value = st.deviceId;
   sel.disabled = list.length < 2;
+
+  // Work out which device is the ultra-wide (the 0.5x lens) and which is the main one.
+  // Browsers that don't report a zoom below 1x often expose the ultra-wide as its own camera.
+  const isUltra = d => /ultra.?wide/i.test(d.label);
+  const curId = st.deviceId;
+  let wide = list.find(isUltra) ?? list.find(d => d.deviceId === state.wideId);   // keep an earlier guess stable
+  if (!wide && !state.deviceId) {   // only guess when the browser chose the camera itself (the default, main one)
+    const others = list.filter(d => d.deviceId !== curId && !/tele/i.test(d.label));
+    if (others.length === 1) { wide = others[0]; try { localStorage.setItem(WIDE_KEY, wide.deviceId); } catch {} }  // one other back camera: assume it is the wide one
+  }
+  state.wideId = wide?.deviceId ?? (list.some(d => d.deviceId === state.wideId) ? state.wideId : null);
+  if (curId !== state.wideId) state.mainId = curId;
+  else if (!list.some(d => d.deviceId === state.mainId)) state.mainId = list.find(d => d.deviceId !== curId)?.deviceId ?? null;
+  state.lensList = list;
+
   setupZoom(track);
   $('lensHint').hidden = list.length > 1 || !$('zoomBox').hidden;
   $('lensBox').hidden = false;
 }
+const PRESETS = [0.5, 1, 2, 3, 5, 10];
+const onWide = () => !!state.wideId && state.stream?.getVideoTracks()[0]?.getSettings().deviceId === state.wideId && state.wideId !== state.mainId;
 function setupZoom(track) {
   const z = track.getCapabilities?.().zoom;
-  const box = $('zoomBox'), range = $('zoom');
-  box.hidden = !z || !(z.max > z.min);
-  if (box.hidden) { state.zoom = 1; return; }
-  range.min = z.min; range.max = z.max; range.step = z.step || 0.1;
-  const presets = [0.5, 1, 2, 3, 5, 10].filter(p => p >= z.min - 0.01 && p <= z.max + 0.01);
+  const hasZoom = !!z && z.max > z.min;
+  state.zoomCaps = hasZoom ? z : null;
+  const wide = onWide();
+  // 0.5x is offered if the zoom range reaches it, or a separate ultra-wide lens can be switched to.
+  const canWide = (hasZoom && z.min <= 0.51) || !!state.wideId;
+  const presets = PRESETS.filter(p => p < 1 ? canWide : (hasZoom ? p <= z.max + 0.01 : p === 1 && !!state.wideId));
+  $('zoomBox').hidden = presets.length < 2 && !hasZoom;
+  $('zoomRange').hidden = !hasZoom || wide;
+  if (hasZoom) { const range = $('zoom'); range.min = z.min; range.max = z.max; range.step = z.step || 0.1; }
   $('zoomPresets').replaceChildren(...presets.map(p => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'toggle'; b.dataset.z = p; b.textContent = `${p}×`;
     return b;
   }));
-  applyZoom(Math.min(Math.max(state.zoom, z.min), z.max));
+  $('zoomInfo').textContent = (hasZoom ? `Zoom range reported by this browser: ${+z.min.toFixed(2)}× to ${+z.max.toFixed(2)}×. ` : '')
+    + (canWide ? '' : `No ultra-wide lens is exposed by this browser.${state.lensList.length > 2 ? ' Try the other entries in the Lens list.' : ''} `);
+  $('zoomInfo').hidden = !$('zoomInfo').textContent;
+  if (wide) { state.zoom = 1; paintZoom(0.5); return; }
+  if (hasZoom) applyZoom(Math.min(Math.max(state.zoom, z.min), z.max)); else { state.zoom = 1; paintZoom(1); }
+}
+function paintZoom(v) {
+  $('zoom').value = v;
+  $('zoomVal').textContent = `${+(+v).toFixed(1)}×`;
+  $('zoomPresets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', Math.abs(+b.dataset.z - v) < 0.06));
 }
 async function applyZoom(v) {
   const track = state.stream?.getVideoTracks()[0]; if (!track) return;
   try { await track.applyConstraints({ advanced: [{ zoom: v }] }); } catch (e) { console.warn('zoom failed', e); return; }
   state.zoom = v;
-  $('zoom').value = v;
-  $('zoomVal').textContent = `${+(+v).toFixed(1)}×`;
-  $('zoomPresets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', Math.abs(+b.dataset.z - v) < 0.06));
+  paintZoom(v);
+}
+async function useLens(id, zoom) {
+  state.deviceId = id; state.zoom = zoom; saveLens(id);
+  try { await startCamera(); } catch (e) { toast('Could not switch lens: ' + e.message, 4000); }
+}
+async function choosePreset(p) {
+  const z = state.zoomCaps;
+  if (p < 1) {
+    if (z && z.min <= p + 0.01) return applyZoom(p);                       // zoom range reaches 0.5x
+    if (state.wideId && !onWide()) return useLens(state.wideId, 1);       // switch to the ultra-wide camera
+    return;
+  }
+  if (onWide() && state.mainId) return useLens(state.mainId, p);          // back from ultra-wide to the main camera
+  applyZoom(p);
 }
 $('zoom').addEventListener('input', e => applyZoom(+e.target.value));
-$('zoomPresets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) applyZoom(+b.dataset.z); });
-$('lens').onchange = async () => {
-  state.deviceId = $('lens').value; state.zoom = 1; saveLens(state.deviceId);
-  try { await startCamera(); } catch (e) { toast('Could not switch lens: ' + e.message, 4000); }
-};
+$('zoomPresets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) choosePreset(+b.dataset.z); });
+$('lens').onchange = () => useLens($('lens').value, 1);
 
 async function loadModels() {
   setStatus('Loading models…');
@@ -1084,6 +1124,7 @@ $('dimmer').onclick = () => $('dimmer').classList.remove('on');
 
 // ---------- Boot ----------
 state.deviceId = savedLens(); // remembered lens; falls back to the default camera if it is gone
+try { state.wideId = localStorage.getItem(WIDE_KEY); } catch {}
 db = await openDB();
 await loadShots();
 renderGallery();

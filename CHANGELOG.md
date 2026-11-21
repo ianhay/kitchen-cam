@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10 - 2026-11-21
+
+- Zoom now offers **0.5x** on phones whose browser reports a zoom range starting at 1x (for example the Pixel 8 Pro in Chrome). When the browser exposes the ultra-wide as its own camera, the 0.5x button switches to it, and 1x or higher switches back to the main camera. The ultra-wide is picked by name where the phone gives one, or assumed to be the only other back camera.
+- The Controls tab now shows the zoom range the browser reports, and says when no ultra-wide lens is exposed, so a missing 0.5x can be diagnosed. All cameras are still listed under Lens for manual choice.
+
 ## 0.1.9 - 2026-11-21
 
 - Added a **Lens** picker and **Zoom** control in the Controls tab (shown once the camera is running). The picker lists the camera devices the browser exposes for the current side (for example ultra wide, main, telephoto); the zoom slider and 0.5x / 1x / 2x / 5x buttons appear when the browser supports hardware zoom, and on many Android phones a zoom below 1x is the ultra-wide lens.
