@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.11 - 2026-11-22
+
+- **Kissing and Looking at each other re-worked.** Both previously needed precise facial landmarks (mouth on mouth, noses turned a set amount), which fail when two heads are close, turned or overlapping, so nothing was captured in a real session. They now work from where the two heads are:
+  - **Kissing** fires when the two heads touch or overlap (centre-to-centre under 0.95 head heights, at about the same height). It also fires if the tracker loses one face just after the heads met, because the faces merge during a kiss. It needs about 0.4 s of this, up from 2 to 4 detection frames. Side-by-side heads that touch (shoulder to shoulder) will count too.
+  - **Looking at each other** fires when the heads are within 3 head heights, at least one is turned toward the other, and neither is turned away. The old rule needed both to turn by a fixed amount.
+  - Distances use head height, which holds up when a head turns to profile, instead of cheek-to-cheek width, which collapses.
+- The camera overlay now draws a line between the two heads (solid when counted as together or looking, dashed when merely near), and the status line shows the head **gap** (in head heights) so thresholds can be tuned from real use. Face detection is slightly more forgiving (confidence thresholds 0.35).
+- **Share to apps.** The Share button is now labelled **Share to apps**, and the photo viewer has a **Share** button beside Save, so a single photo can go straight to Google Photos or any other app in the share sheet. If the browser cannot share, it now says so instead of silently downloading. Save and Download ZIP are unchanged.
+- **0.5x zoom button is now always shown** on a back camera. If the browser does not expose the ultra-wide, tapping it says so. A **Camera details** section lists the cameras and zoom range the browser reports. When several back cameras are listed, pick the ultra-wide in the Lens list and tap **Use this lens for 0.5×** to remember it.
+
 ## 0.1.10 - 2026-11-21
 
 - Zoom now offers **0.5x** on phones whose browser reports a zoom range starting at 1x (for example the Pixel 8 Pro in Chrome). When the browser exposes the ultra-wide as its own camera, the 0.5x button switches to it, and 1x or higher switches back to the main camera. The ultra-wide is picked by name where the phone gives one, or assumed to be the only other back camera.

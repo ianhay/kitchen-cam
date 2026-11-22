@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="version" content="0.1.10">
+<meta name="version" content="0.1.11">
 <meta name="theme-color" content="#10151c">
 <title>Kitchen Cam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,6 +143,9 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ih-primary
 input[type=range] { width: 100%; min-height: 44px; accent-color: var(--ih-primary); margin: 0; }
 .lens-box select { width: 100%; }
 #zoomPresets button { min-width: 52px; padding: 0 10px; }
+#zoomPresets button.maybe { color: var(--ih-text-secondary); border-style: dashed; }
+.cam-info summary { cursor: pointer; font-weight: 500; min-height: 32px; }
+.cam-info pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 var(--ih-font-code); color: var(--ih-text-secondary); margin: 6px 0 0; user-select: text; -webkit-user-select: text; }
 #zoomVal { font-family: var(--ih-font-code); color: var(--ih-text-secondary); margin-left: 6px; }
 .hint { color: var(--ih-text-secondary); font-size: 14px; margin: 6px 0 0; }
 .gallery-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -181,6 +184,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 .viewer .edge-r { right: 0; }
 #viewerStar[aria-pressed="true"] { background: var(--ih-accent); border-color: var(--ih-accent); color: var(--ih-text-on-accent); }
 #viewerStar[aria-pressed="true"]:hover { background: var(--ih-accent-hover); }
+.viewer .row { justify-content: center; }
 .viewer .meta { color: #f3f5f8; font: 500 13px/1.3 var(--ih-font-code); }
 .dimmer { position: fixed; inset: 0; background: #000; display: none; z-index: 30; color: #c0c8d3; align-items: flex-end; justify-content: center; padding-bottom: 40px; font-size: 14px; }
 .dimmer.on { display: flex; }
@@ -235,7 +239,9 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
             <div class="row" id="zoomPresets"></div>
             <p class="hint" id="zoomInfo" hidden></p>
           </div>
+          <button type="button" id="setWide" hidden>Use this lens for 0.5×</button>
           <p class="hint" id="lensHint" hidden>This phone and browser only offer one lens.</p>
+          <details class="cam-info"><summary>Camera details</summary><pre id="camInfoText"></pre></details>
         </div>
         <label><input type="checkbox" id="keepAwake" checked> Keep screen on</label>
         <p class="hint">Everything runs on this phone. No images leave the device until you download or share them.</p>
@@ -285,7 +291,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
         </div>
         <div class="row">
           <button id="zipBtn">Download ZIP</button>
-          <button id="shareBtn">Share</button>
+          <button id="shareBtn">Share to apps</button>
           <button class="danger" id="clearUnstarredBtn" disabled>Clear unstarred</button>
           <button class="danger" id="clearBtn">Clear all</button>
         </div>
@@ -303,6 +309,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
     <button id="viewerPrev">Previous</button>
     <button id="viewerStar" aria-pressed="false">☆ Star</button>
     <button id="viewerNext">Next</button>
+    <button id="viewerShare">Share</button>
     <button id="viewerSave">Save</button>
     <button id="viewerClose">Close</button>
   </div>
@@ -311,7 +318,7 @@ button[aria-pressed="true"].toggle { background: var(--ih-primary-soft); border-
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-const APP_VERSION = '0.1.10';
+const APP_VERSION = '0.1.11';
 const APP_NAME = 'Kitchen Cam';
 document.querySelectorAll('[data-version]').forEach(el => el.textContent = 'v' + APP_VERSION);
 console.log(`%c${APP_NAME} v${APP_VERSION}`, 'font-weight:600');
@@ -328,7 +335,7 @@ const MOMENTS = {
   taste: { label: 'Taste testing',      hold: 2, cooldown: 6  },
   smell: { label: 'Smelling',           hold: 3, cooldown: 8  },
   look:  { label: 'Looking at each other', chip: 'Eye contact', hold: 4, cooldown: 10 },
-  kiss:  { label: 'Kissing',            hold: 2, cooldown: 12 },
+  kiss:  { label: 'Kissing',            hold: 4, cooldown: 12 },
   prep: { label: 'Prep action',        hold: 5, cooldown: 25 },
 };
 const GLOBAL_GAP_MS = 2500;
@@ -342,6 +349,8 @@ const state = {
   lastFired: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, -1e9])),
   counts: Object.fromEntries(Object.keys(MOMENTS).map(k => [k, 0])),
   live: {},
+  pair: null,       // the two largest faces and how far apart they are, set by evaluate()
+  closePair: null,  // where two heads were last together (to bridge a merged face)
   lastBurst: 0,
   running: false,
   facing: 'environment',
@@ -493,7 +502,7 @@ function updateToolbar() {
   $('selStar').disabled = $('selDelete').disabled = !n;
   $('selStar').textContent = n && sel.every(s => s.starred) ? '☆ Unstar' : '★ Star';
   $('zipBtn').textContent = n ? `Download ZIP (${n})` : 'Download ZIP';
-  $('shareBtn').textContent = n ? `Share (${n})` : 'Share';
+  $('shareBtn').textContent = n ? `Share to apps (${n})` : 'Share to apps';
   disarmDelete();
 }
 function renderGallery() {
@@ -647,19 +656,28 @@ document.addEventListener('keydown', e => {
   viewer.addEventListener('pointerup', end); viewer.addEventListener('pointercancel', end);
 }
 
-async function saveFiles(shots) {
+// Save = plain download to the phone's Downloads folder.
+function saveFiles(shots) {
   if (!shots.length) return toast('Nothing to save yet');
-  const files = shots.map(s => new File([s.blob], s.name, { type: 'image/jpeg' }));
-  try {
-    if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, title: 'Kitchen Cam' }); return; }
-  } catch (e) { if (e.name === 'AbortError') return; }
   shots.forEach(s => { const a = document.createElement('a'); a.href = s.url; a.download = s.name; a.click(); });
+}
+// Share = the phone's own share sheet (Google Photos, Messages, Drive, WhatsApp, email, ...).
+async function shareFiles(shots) {
+  if (!shots.length) return toast('Nothing to share yet');
+  const files = shots.map(s => new File([s.blob], s.name, { type: 'image/jpeg' }));
+  if (!navigator.share || !navigator.canShare || !navigator.canShare({ files })) {
+    toast(navigator.share ? `This browser cannot share ${files.length > 1 ? 'that many photos at once. Try fewer, or use Download ZIP.' : 'photos. Use Save instead.'}` : 'This browser has no share sheet. Use Save or Download ZIP.', 5000);
+    return;
+  }
+  try { await navigator.share({ files, title: 'Kitchen Cam' }); }
+  catch (e) { if (e.name !== 'AbortError') toast(`Sharing failed (${e.name}). Try fewer photos, or use Save.`, 5000); }
 }
 $('shareBtn').onclick = () => {
   const list = selected.size ? selectedShots() : filtered();
-  if (list.length > 40) toast('Sharing the newest 40. Use Download ZIP for everything.');
-  saveFiles(list.slice(0, 40));
+  if (list.length > 30) toast('Sharing the newest 30. Select photos, or use Download ZIP, for more.', 4000);
+  shareFiles(list.slice(0, 30));
 };
+$('viewerShare').onclick = () => shareFiles([filtered()[viewIdx]]);
 $('zipBtn').onclick = async () => {
   const list = selected.size ? selectedShots() : filtered(); if (!list.length) return toast('Nothing to download yet');
   $('zipBtn').disabled = true; setStatus('Zipping…');
@@ -762,18 +780,23 @@ function analyseFaces(faceRes) {
     const mouth = mid(px(lm[13]), px(lm[14]));
     const chin = px(lm[152]);
     const centre = mid(cheekL, cheekR);
+    // Head box from every landmark. Height barely changes when a head turns to profile,
+    // unlike cheek-to-cheek width, so it is the scale used for "how close are the heads".
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of lm) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; }
+    const h = (y1 - y0) * H(), cx = (x0 + x1) / 2 * W(), cy = (y0 + y1) / 2 * H();
     return {
-      lm, width, nose, mouth, chin, centre,
+      lm, width: Math.max(width, 0.6 * h), h, cx, cy, nose, mouth, chin, centre,
       cheeks: [px(lm[205]), px(lm[425])],
       pucker: b.mouthPucker || 0,
       smile: ((b.mouthSmileLeft || 0) + (b.mouthSmileRight || 0)) / 2,
       jawOpen: b.jawOpen || 0,
       eyesClosed: ((b.eyeBlinkLeft || 0) + (b.eyeBlinkRight || 0)) / 2,
       // + = nose turned toward image-right, - = toward image-left
-      yaw: width > 0 ? (nose.x - centre.x) / width : 0,
+      yaw: width > 0 ? Math.max(-1, Math.min(1, (nose.x - centre.x) / width)) : 0,
     };
   });
-  return faces.filter(f => f.width > 20);
+  return faces.filter(f => f.h > 30);
 }
 
 function handPoints(handRes) {
@@ -803,26 +826,39 @@ function evaluate(faces, hands, sens) {
     }
   }
 
-  // Looking at each other: two faces turned toward one another
+  // Two heads: how far apart are the two largest faces, in head heights (0 = on top of each other,
+  // about 0.75 = side by side and touching, 3 = a couple of head-widths of gap).
+  const now = performance.now();
+  state.pair = null;
   if (faces.length >= 2) {
-    const [a, b] = [...faces].sort((p, q) => q.width - p.width).slice(0, 2).sort((p, q) => p.centre.x - q.centre.x);
-    const t = 0.09 / sens;
-    if (a.yaw > t && b.yaw < -t) live.look = true;
-  }
+    const [a, b] = [...faces].sort((p, q) => q.h - p.h).slice(0, 2).sort((p, q) => p.cx - q.cx);
+    const mh = (a.h + b.h) / 2;
+    const d = Math.hypot(a.cx - b.cx, a.cy - b.cy) / mh;
+    const dy = Math.abs(a.cy - b.cy) / mh;
+    state.pair = { a, b, d, dy };
 
-  // Kissing: one person's mouth on the other's mouth or cheek (distances relative to mean face width)
-  if (faces.length >= 2) {
-    const [a, b] = [...faces].sort((p, q) => q.width - p.width).slice(0, 2);
-    const w = (a.width + b.width) / 2;
-    const mouthToMouth = dist(a.mouth, b.mouth) / w;
-    const cheekKiss = Math.min(
-      ...b.cheeks.map(c => dist(a.mouth, c)), ...a.cheeks.map(c => dist(b.mouth, c))) / w;
-    const puckered = Math.max(a.pucker, b.pucker) > 0.3;
-    if (mouthToMouth < 0.45 * sens || (cheekKiss < 0.3 * sens && puckered)) live.kiss = true;
+    // Kissing / heads together: the two heads touch or overlap, at about the same height.
+    // This works from head positions alone, so it still fires when the faces are turned or partly hidden.
+    if (d < 0.95 * sens && dy < 0.6) {
+      live.kiss = true;
+      state.closePair = { t: now, x: (a.cx + b.cx) / 2, y: (a.cy + b.cy) / 2, h: mh };
+    }
+
+    // Looking at each other: heads reasonably near, at least one turned toward the other and
+    // neither turned away. (Turning is measured by yaw: + = nose toward image-right.)
+    else if (d < 3 * sens && dy < 1.2) {
+      const toward = a.yaw - b.yaw;
+      if (toward > 0.14 / sens && a.yaw > -0.04 && b.yaw < 0.04) live.look = true;
+    }
+  } else if (faces.length === 1 && state.closePair && now - state.closePair.t < 800) {
+    // Two heads were just together and now only one face is found: during a kiss the faces often
+    // merge and the tracker drops one. Bridge that gap while the remaining face stays where the pair was.
+    const f = faces[0], c = state.closePair;
+    if (Math.hypot(f.cx - c.x, f.cy - c.y) / c.h < 0.8) live.kiss = true;
   }
+  if (live.kiss) live.look = false; // a kiss is not eye contact
 
   // Prep action: hands below face level, moving briskly
-  const now = performance.now();
   const lowestChin = faces.length ? Math.max(...faces.map(f => f.chin.y)) : 0;
   const workHands = hands.filter(h => h.wrist.y > lowestChin);
   if (workHands.length && state.prevHands && state.prevHands.length) {
@@ -863,6 +899,15 @@ function drawOverlay(faces, hands) {
     const [nx, ny] = T(f.nose);
     octx.beginPath(); octx.moveTo(nx, ny); octx.lineTo(nx + f.yaw * 160 * devicePixelRatio, ny); octx.stroke();
   }
+  // line between the two heads: orange when counted as together, blue when merely near
+  const p = state.pair;
+  if (p && p.d < 3) {
+    const [ax, ay] = T({ x: p.a.cx, y: p.a.cy }), [bx, by] = T({ x: p.b.cx, y: p.b.cy });
+    octx.strokeStyle = state.live.kiss ? '#f29b4b' : state.live.look ? '#7ea8f2' : 'rgba(126,168,242,.45)';
+    octx.setLineDash(state.live.kiss || state.live.look ? [] : [6 * devicePixelRatio, 6 * devicePixelRatio]);
+    octx.beginPath(); octx.moveTo(ax, ay); octx.lineTo(bx, by); octx.stroke();
+    octx.setLineDash([]);
+  }
   octx.fillStyle = '#f29b4b';
   for (const h of hands) for (const t of h.tips) {
     const [x, y] = T(t); octx.beginPath(); octx.arc(x, y, 4 * devicePixelRatio, 0, Math.PI * 2); octx.fill();
@@ -892,7 +937,7 @@ async function detectLoop() {
         if (!fire && state.streak[k] >= m.hold && now - state.lastFired[k] > m.cooldown * 1000 && now - state.lastBurst > GLOBAL_GAP_MS) fire = k;
       }
       if (fire) { state.streak[fire] = 0; burst(fire); }
-      setStatus(`Watching · ${faces.length} face${faces.length === 1 ? '' : 's'} · ${hands.length} hand${hands.length === 1 ? '' : 's'}`);
+      setStatus(`Watching · ${faces.length} face${faces.length === 1 ? '' : 's'} · ${hands.length} hand${hands.length === 1 ? '' : 's'}${state.pair ? ` · gap ${state.pair.d.toFixed(1)}` : ''}`);
       renderChips();
     } catch (e) { console.warn(e); }
   }
@@ -970,13 +1015,28 @@ async function setupLenses() {
     if (others.length === 1) { wide = others[0]; try { localStorage.setItem(WIDE_KEY, wide.deviceId); } catch {} }  // one other back camera: assume it is the wide one
   }
   state.wideId = wide?.deviceId ?? (list.some(d => d.deviceId === state.wideId) ? state.wideId : null);
-  if (curId !== state.wideId) state.mainId = curId;
-  else if (!list.some(d => d.deviceId === state.mainId)) state.mainId = list.find(d => d.deviceId !== curId)?.deviceId ?? null;
+  // the main lens is whatever the browser opens by default; a lens picked by hand does not replace it
+  if (!state.deviceId || !list.some(d => d.deviceId === state.mainId)) state.mainId = curId !== state.wideId ? curId : (list.find(d => d.deviceId !== curId)?.deviceId ?? null);
   state.lensList = list;
 
   setupZoom(track);
+  // several back cameras and no way to tell which is the ultra-wide: let the user say so
+  $('setWide').hidden = !(list.length > 2 && curId !== state.mainId && curId !== state.wideId);
   $('lensHint').hidden = list.length > 1 || !$('zoomBox').hidden;
   $('lensBox').hidden = false;
+  showCameraInfo(track, devs, list);
+}
+function showCameraInfo(track, devs, list) {
+  const st = track.getSettings(), caps = track.getCapabilities?.() ?? {}, z = caps.zoom;
+  $('camInfoText').textContent = [
+    `Facing: ${state.facing}`,
+    `Active: ${lensName(devs.find(d => d.deviceId === st.deviceId)?.label || '', 0)} (${(st.deviceId || '?').slice(0, 8)}), ${st.width}x${st.height}`,
+    `Cameras the browser lists: ${devs.length}`,
+    ...devs.map(d => `  - ${d.label || '(no name)'}${d.deviceId === st.deviceId ? '  <- active' : ''}${d.deviceId === state.wideId ? '  <- used for 0.5x' : ''}`),
+    `Zoom: ${z ? `${z.min} to ${z.max}, step ${z.step}` : 'not reported'}${st.zoom ? `, now ${st.zoom}` : ''}`,
+    `Other controls: ${Object.keys(caps).filter(k => k !== 'zoom').join(', ') || 'none'}`,
+    `Browser: ${(navigator.userAgent.match(/(Chrome|Firefox|Safari|Version)\/[\d.]+/g) || []).join(' ')}`,
+  ].join('\n');
 }
 const PRESETS = [0.5, 1, 2, 3, 5, 10];
 const onWide = () => !!state.wideId && state.stream?.getVideoTracks()[0]?.getSettings().deviceId === state.wideId && state.wideId !== state.mainId;
@@ -987,17 +1047,20 @@ function setupZoom(track) {
   const wide = onWide();
   // 0.5x is offered if the zoom range reaches it, or a separate ultra-wide lens can be switched to.
   const canWide = (hasZoom && z.min <= 0.51) || !!state.wideId;
-  const presets = PRESETS.filter(p => p < 1 ? canWide : (hasZoom ? p <= z.max + 0.01 : p === 1 && !!state.wideId));
-  $('zoomBox').hidden = presets.length < 2 && !hasZoom;
+  // The 0.5x button is always shown on a back camera: if the browser can't reach it, tapping says why.
+  const back = state.facing === 'environment';
+  const presets = PRESETS.filter(p => p < 1 ? back || canWide : (hasZoom ? p <= z.max + 0.01 : p === 1 && !!state.wideId));
+  $('zoomBox').hidden = !hasZoom && !back;
   $('zoomRange').hidden = !hasZoom || wide;
   if (hasZoom) { const range = $('zoom'); range.min = z.min; range.max = z.max; range.step = z.step || 0.1; }
   $('zoomPresets').replaceChildren(...presets.map(p => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'toggle'; b.dataset.z = p; b.textContent = `${p}×`;
+    if (p < 1 && !canWide) b.classList.add('maybe');
     return b;
   }));
   $('zoomInfo').textContent = (hasZoom ? `Zoom range reported by this browser: ${+z.min.toFixed(2)}× to ${+z.max.toFixed(2)}×. ` : '')
-    + (canWide ? '' : `No ultra-wide lens is exposed by this browser.${state.lensList.length > 2 ? ' Try the other entries in the Lens list.' : ''} `);
+    + (canWide || !back ? '' : `The ultra-wide (0.5×) was not found among the cameras this browser lists.${state.lensList.length > 2 ? ' If one of them is the ultra-wide, pick it in the Lens list, then tap "Use this lens for 0.5×".' : ''} `);
   $('zoomInfo').hidden = !$('zoomInfo').textContent;
   if (wide) { state.zoom = 1; paintZoom(0.5); return; }
   if (hasZoom) applyZoom(Math.min(Math.max(state.zoom, z.min), z.max)); else { state.zoom = 1; paintZoom(1); }
@@ -1022,6 +1085,15 @@ async function choosePreset(p) {
   if (p < 1) {
     if (z && z.min <= p + 0.01) return applyZoom(p);                       // zoom range reaches 0.5x
     if (state.wideId && !onWide()) return useLens(state.wideId, 1);       // switch to the ultra-wide camera
+    if (onWide()) return;
+    // Nothing listed for it: try asking for a sub-1x zoom anyway, in case the range is under-reported.
+    const track = state.stream?.getVideoTracks()[0];
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: p }] });
+      const got = track.getSettings().zoom;
+      if (got && got <= p + 0.05) { state.zoom = got; paintZoom(got); return; }
+    } catch {}
+    toast('This browser does not offer the ultra-wide (0.5×) on this phone. See Camera details below.', 6000);
     return;
   }
   if (onWide() && state.mainId) return useLens(state.mainId, p);          // back from ultra-wide to the main camera
@@ -1030,13 +1102,19 @@ async function choosePreset(p) {
 $('zoom').addEventListener('input', e => applyZoom(+e.target.value));
 $('zoomPresets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) choosePreset(+b.dataset.z); });
 $('lens').onchange = () => useLens($('lens').value, 1);
+$('setWide').onclick = () => {
+  const id = $('lens').value;
+  state.wideId = id; try { localStorage.setItem(WIDE_KEY, id); } catch {}
+  toast('Saved. The 0.5× button now uses this lens.');
+  const track = state.stream?.getVideoTracks()[0]; if (track) { setupZoom(track); $('setWide').hidden = true; }
+};
 
 async function loadModels() {
   setStatus('Loading models…');
   const { FilesetResolver, FaceLandmarker, HandLandmarker } = await import(`${MP_BASE}/vision_bundle.mjs`);
   const fileset = await FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
   const make = async (Cls, opts, delegate) => Cls.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate } });
-  const faceOpts = { baseOptions: { modelAssetPath: FACE_MODEL }, runningMode: 'VIDEO', numFaces: 2, outputFaceBlendshapes: true };
+  const faceOpts = { baseOptions: { modelAssetPath: FACE_MODEL }, runningMode: 'VIDEO', numFaces: 2, outputFaceBlendshapes: true, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, minTrackingConfidence: 0.35 };
   const handOpts = { baseOptions: { modelAssetPath: HAND_MODEL }, runningMode: 'VIDEO', numHands: 4 };
   try {
     state.face = await make(FaceLandmarker, faceOpts, 'GPU');
